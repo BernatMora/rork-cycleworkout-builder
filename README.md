@@ -124,6 +124,7 @@ bun run start -- --android
    ```
 
 4. **Submit to App Store**:
+
    ```bash
    eas submit --platform ios
    ```
@@ -139,6 +140,7 @@ For detailed instructions, visit [Expo's App Store deployment guide](https://doc
    ```
 
 2. **Submit to Google Play**:
+
    ```bash
    eas submit --platform android
    ```
@@ -149,22 +151,32 @@ For detailed instructions, visit [Expo's Google Play deployment guide](https://d
 
 Your React Native app can also run on the web:
 
-1. **Build for web**:
+1. **Build for web (static export)**:
 
    ```bash
-   eas build --platform web
+   bun run build:web
    ```
 
-2. **Deploy with EAS Hosting**:
+2. **Deploy to Vercel (recommended)**:
+
    ```bash
-   eas hosting:configure
-   eas hosting:deploy
+   # First time only: login
+   npx vercel login
+
+   # Deploy production
+   bun run deploy:vercel
    ```
 
-Alternative web deployment options:
+3. **Automatic deploys with GitHub**:
 
-- **Vercel**: Deploy directly from your GitHub repository
-- **Netlify**: Connect your GitHub repo to Netlify for automatic deployments
+- Import this repository in Vercel
+- Build command: `npx expo export --platform web`
+- Output directory: `dist`
+
+Alternative web deployment options (same static folder):
+
+- **Netlify**: build command `npx expo export --platform web`, publish directory `dist`
+- **Cloudflare Pages**: build command `npx expo export --platform web`, output directory `dist`
 
 ## App Features
 
@@ -178,9 +190,132 @@ This template includes:
 - **Async storage** for local data persistence
 - **Vector icons** with Lucide React Native
 
+## Adaptive Game Ride (New MVP)
+
+This project now includes a new experimental training engine at [utils/adaptive-game.ts](utils/adaptive-game.ts) that introduces a game-like adaptive workout flow.
+
+### What makes it different
+
+- **Branching phases**: each workout is split into 3-5 phases and each phase is assigned a lane:
+  - **safe**: controlled progression
+  - **aggressive**: higher-intensity push
+- **Readiness-driven decisions** based on previous session stress and execution quality:
+  - previous RPE
+  - completion rate
+  - heart-rate drift
+  - cadence stability
+- **Player profiles**:
+  - `Explorer` (more conservative)
+  - `Crusher` (more aggressive)
+  - `Technician` (balanced)
+- **Weekly Boss Workout** generated from your top weakness area:
+  - VO2 Repeatability
+  - Threshold Durability
+  - Sprint Repeatability
+  - Cadence Control
+
+### Core APIs
+
+- `generateAdaptiveGameSession(input)`
+- `generateWeeklyBossWorkout(input)`
+- `getAdaptiveGameReadinessScore(signals)`
+- `pickWeeklyBossFocus(weaknessScores)`
+
+### Quality checks
+
+Unit tests for the new system are in [utils/adaptive-game.test.ts](utils/adaptive-game.test.ts).
+
+## Advanced Training Modes
+
+This project also includes an advanced workout transformation layer in [utils/advanced-modes.ts](utils/advanced-modes.ts), integrated in the main planner UI (`Advanced Training Mode`).
+
+### Modes included
+
+- **Race Simulator**: simulates race rhythm (openings, settles, attacks, finish) with selectable profile:
+  - `TT`
+  - `Crits`
+  - `Gran Fondo`
+- **Spin Class (v2)**: dedicated indoor class engine with selectable class personalities:
+  - `Rhythm`
+  - `Climb`
+  - `Power`
+  - `Recovery Flow`
+  - Includes weekly 3:1 progression (week 4 deload), BPM/cadence ladders, seated/standing transitions, and per-session micro-objectives.
+- **Cadence Intelligence**: injects low/normal/high cadence blocks (`75/90/105 rpm`) and writes cadence targets to ICTX export.
+- **Heat/Stress Safe**: auto-softens peaks and increases recovery density when fatigue signals are high.
+- **Micro-dose**: compresses quality into a smaller effective dose while keeping exact session duration.
+- **Skills Day**: lower-intensity technique session with cadence control drills.
+- **Block Periodization**: 3:1 logic with a consolidation week every 4th week, and selectable focus:
+  - `VO2`
+  - `Threshold`
+
+### How to use in the app
+
+- Open the planner screen.
+- Choose a value in `Advanced Training Mode`.
+- If applicable, set `Race Profile` (Race Simulator), `Spin Style` (Spin Class), or `Block Focus` (Block Periodization).
+- Generate the plan.
+
+### Validation
+
+- Engine tests: [utils/advanced-modes.test.ts](utils/advanced-modes.test.ts)
+- Cadence export test (ICTX `<rpm>`): [utils/zwo.test.ts](utils/zwo.test.ts)
+
+## Release Notes
+
+### Template (English)
+
+```markdown
+### YYYY-MM-DD
+
+- Added:
+   -
+- Changed:
+   -
+- Fixed:
+   -
+- Tests:
+  - `bun test` -> X pass / Y fail
+```
+
+### Plantilla (Català)
+
+```markdown
+### YYYY-MM-DD
+
+- Afegit:
+   -
+- Canviat:
+   -
+- Corregit:
+   -
+- Tests:
+  - `bun test` -> X pass / Y fail
+```
+
+### 2026-03-04
+
+- Added **Adaptive Game Ride** engine and planner integration, including readiness states and weekly boss generation.
+- Added **Advanced Training Modes** with seven transformations:
+  - Race Simulator
+  - Spin Class
+  - Cadence Intelligence
+  - Heat/Stress Safe
+  - Micro-dose
+  - Skills Day
+  - Block Periodization
+- Added cadence targets in workout intervals (`cadence_rpm_target`) and wired them to:
+  - Preview table rendering in [components/WorkoutPreview.tsx](components/WorkoutPreview.tsx)
+  - ICTX export `<rpm>` generation in [utils/zwo-core.ts](utils/zwo-core.ts)
+- Added/updated tests for new behavior:
+  - [utils/adaptive-game.test.ts](utils/adaptive-game.test.ts)
+  - [utils/advanced-modes.test.ts](utils/advanced-modes.test.ts)
+  - [utils/zwo.test.ts](utils/zwo.test.ts)
+- Current validation status: `bun test` passing (`31 pass`, `0 fail`).
+
 ## Project Structure
 
-```
+```text
 ├── app/                    # App screens (Expo Router)
 │   ├── (tabs)/            # Tab navigation screens
 │   │   ├── _layout.tsx    # Tab layout configuration
@@ -316,3 +451,5 @@ For mobile apps, you'll configure your app's deep linking scheme in `app.json`.
 Rork builds fully native mobile apps using React Native and Expo - the same technology stack used by Discord, Shopify, Coinbase, Instagram, and nearly 30% of the top 100 apps on the App Store.
 
 Your Rork app is production-ready and can be published to both the App Store and Google Play Store. You can also export your app to run on the web, making it truly cross-platform.
+
+

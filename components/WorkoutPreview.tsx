@@ -1,16 +1,17 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { WorkoutInterval } from '@/types/workout';
-import { formatDuration, getZoneColor, getZoneName } from '@/utils/zwo';
+import { formatDuration, getZoneColor, getZoneName, getHrRangeFromPower, getRpeFromPower } from '@/utils/zwo';
 import Colors from '@/constants/colors';
 
 interface WorkoutPreviewProps {
   intervals: WorkoutInterval[];
   tss: number;
   ftp: number;
+  maxHr?: number;
 }
 
-export default function WorkoutPreview({ intervals, tss, ftp }: WorkoutPreviewProps) {
+export default function WorkoutPreview({ intervals, tss, ftp, maxHr }: WorkoutPreviewProps) {
   const totalDuration = useMemo(
     () => intervals.reduce((sum, i) => sum + i.duration_seconds, 0),
     [intervals]
@@ -73,7 +74,10 @@ export default function WorkoutPreview({ intervals, tss, ftp }: WorkoutPreviewPr
         <Text style={[styles.tableHeaderText, styles.colDuration]}>Duration</Text>
         <Text style={[styles.tableHeaderText, styles.colPower]}>%FTP</Text>
         <Text style={[styles.tableHeaderText, styles.colWatts]}>Watts</Text>
+        <Text style={[styles.tableHeaderText, styles.colCadence]}>Cad</Text>
         <Text style={[styles.tableHeaderText, styles.colZone]}>Zone</Text>
+        <Text style={[styles.tableHeaderText, styles.colHr]}>HR</Text>
+        <Text style={[styles.tableHeaderText, styles.colRpe]}>RPE</Text>
       </View>
 
       <ScrollView style={styles.tableBody} nestedScrollEnabled>
@@ -81,6 +85,8 @@ export default function WorkoutPreview({ intervals, tss, ftp }: WorkoutPreviewPr
           const color = getZoneColor(interval.power_percent_ftp);
           const watts = Math.round((interval.power_percent_ftp / 100) * ftp);
           const zone = getZoneName(interval.power_percent_ftp);
+          const hrRange = maxHr && maxHr > 0 ? getHrRangeFromPower(interval.power_percent_ftp, maxHr) : null;
+          const rpe = getRpeFromPower(interval.power_percent_ftp);
           const typeLabel = interval.type.charAt(0).toUpperCase() + interval.type.slice(1);
 
           return (
@@ -96,7 +102,12 @@ export default function WorkoutPreview({ intervals, tss, ftp }: WorkoutPreviewPr
                 {interval.power_percent_ftp}%
               </Text>
               <Text style={[styles.cellText, styles.colWatts]}>{watts}w</Text>
+              <Text style={[styles.cellText, styles.colCadence]}>{interval.cadence_rpm_target ? `${interval.cadence_rpm_target}` : '--'}</Text>
               <Text style={[styles.cellText, styles.colZone, { color }]}>{zone}</Text>
+              <Text style={[styles.cellText, styles.colHr]}>
+                {hrRange ? `${hrRange.low}-${hrRange.high}` : '--'}
+              </Text>
+              <Text style={[styles.cellText, styles.colRpe]}>{rpe}</Text>
             </View>
           );
         })}
@@ -223,8 +234,20 @@ const styles = StyleSheet.create({
     flex: 1.2,
     textAlign: 'right' as const,
   },
-  colZone: {
+  colCadence: {
     flex: 1,
+    textAlign: 'right' as const,
+  },
+  colZone: {
+    flex: 0.9,
+    textAlign: 'right' as const,
+  },
+  colHr: {
+    flex: 1.1,
+    textAlign: 'right' as const,
+  },
+  colRpe: {
+    flex: 0.9,
     textAlign: 'right' as const,
   },
 });

@@ -19,6 +19,19 @@ interface GenerateParams {
   goal: TrainingGoal;
   level: FitnessLevel;
   style: WorkoutStyle;
+  warmupMinutes: number;
+  cooldownMinutes: number;
+  warmupPowerPercent: number;
+  cooldownPowerPercent: number;
+  intensityAdjustmentPercent?: number;
+  ergSmoothMode?: boolean;
+}
+
+interface WarmupCooldownSettings {
+  warmupMinutes: number;
+  cooldownMinutes: number;
+  warmupPowerPercent: number;
+  cooldownPowerPercent: number;
 }
 
 function buildFallbackWorkout(targetSeconds: number, goal: TrainingGoal): WorkoutInterval[] {
@@ -105,61 +118,313 @@ function fitToDuration(intervals: WorkoutInterval[], targetSeconds: number): Wor
     return intervals;
   }
 
+  const minIntervalSeconds = 1;
+
   const adjusted = intervals.map((interval) => ({
     ...interval,
-    duration_seconds: Math.max(5, Math.round(interval.duration_seconds)),
+    duration_seconds: Math.max(minIntervalSeconds, Math.round(interval.duration_seconds)),
   }));
 
   const totalSeconds = adjusted.reduce((sum, item) => sum + item.duration_seconds, 0);
-  const delta = targetSeconds - totalSeconds;
-
-  if (delta === 0) {
+  if (totalSeconds <= 0) {
     return adjusted;
   }
 
-  const lastIndex = adjusted.length - 1;
-  adjusted[lastIndex] = {
-    ...adjusted[lastIndex],
-    duration_seconds: Math.max(5, adjusted[lastIndex].duration_seconds + delta),
-  };
+  if (totalSeconds === targetSeconds) {
+    return adjusted;
+  }
 
-  const finalTotal = adjusted.reduce((sum, item) => sum + item.duration_seconds, 0);
-  if (finalTotal !== targetSeconds) {
-    const correction = targetSeconds - finalTotal;
-    adjusted[lastIndex] = {
-      ...adjusted[lastIndex],
-      duration_seconds: Math.max(5, adjusted[lastIndex].duration_seconds + correction),
+  const scale = targetSeconds / totalSeconds;
+  const scaled = adjusted.map((interval) => ({
+    ...interval,
+    duration_seconds: Math.max(minIntervalSeconds, Math.round(interval.duration_seconds * scale)),
+  }));
+
+  let currentTotal = scaled.reduce((sum, item) => sum + item.duration_seconds, 0);
+  let delta = targetSeconds - currentTotal;
+
+  if (delta === 0) {
+    return scaled;
+  }
+
+  const direction = delta > 0 ? 1 : -1;
+  let index = scaled.length - 1;
+  let guard = 0;
+
+  while (delta !== 0 && guard < 100000) {
+    const item = scaled[index];
+
+    if (direction > 0) {
+      item.duration_seconds += 1;
+      delta -= 1;
+    } else if (item.duration_seconds > minIntervalSeconds) {
+      item.duration_seconds -= 1;
+      delta += 1;
+    }
+
+    index -= 1;
+    if (index < 0) {
+      index = scaled.length - 1;
+    }
+
+    guard += 1;
+  }
+
+  currentTotal = scaled.reduce((sum, item) => sum + item.duration_seconds, 0);
+  if (currentTotal !== targetSeconds) {
+    const correction = targetSeconds - currentTotal;
+    const lastIndex = scaled.length - 1;
+    scaled[lastIndex] = {
+      ...scaled[lastIndex],
+      duration_seconds: Math.max(minIntervalSeconds, scaled[lastIndex].duration_seconds + correction),
     };
   }
 
-  return adjusted;
+  return scaled;
 }
 
 function validateGeneratedIntervals(
   intervals: WorkoutInterval[],
   targetSeconds: number,
-  goal: TrainingGoal
+  goal: TrainingGoal,
+  settings: WarmupCooldownSettings
 ): WorkoutInterval[] {
   if (!Array.isArray(intervals) || intervals.length === 0) {
     console.log('[workout-generator] Empty intervals from AI, using fallback workout');
-    return fitToDuration(buildFallbackWorkout(targetSeconds, goal), targetSeconds);
+    return applyWarmupCooldown(
+      fitToDuration(buildFallbackWorkout(targetSeconds, goal), targetSeconds),
+      targetSeconds,
+      settings
+    );
   }
 
   const sanitized: WorkoutInterval[] = intervals.map((interval) => ({
     ...interval,
-    duration_seconds: Math.max(5, Math.round(interval.duration_seconds)),
+    duration_seconds: Math.max(1, Math.round(interval.duration_seconds)),
     power_percent_ftp: Math.max(35, Math.min(170, Math.round(interval.power_percent_ftp))),
   }));
 
-  const withWarmup: WorkoutInterval[] = sanitized.some((item) => item.type === 'warmup')
-    ? sanitized
-    : [{ type: 'warmup' as const, duration_seconds: 8 * 60, power_percent_ftp: 52 }, ...sanitized];
+  const fitted = fitToDuration(sanitized, targetSeconds);
+  return applyWarmupCooldown(fitted, targetSeconds, settings);
+}
 
-  const withCooldown: WorkoutInterval[] = withWarmup.some((item) => item.type === 'cooldown')
-    ? withWarmup
-    : [...withWarmup, { type: 'cooldown' as const, duration_seconds: 6 * 60, power_percent_ftp: 45 }];
+function applyWarmupCooldown(
+  intervals: WorkoutInterval[],
+  targetSeconds: number,
+  settings: WarmupCooldownSettings
+): WorkoutInterval[] {
+  const safeWarmupMinutes = Math.max(1, Math.min(5, settings.warmupMinutes));
+  const warmupSecondsRaw = Math.round(safeWarmupMinutes * 60);
+  const cooldownSecondsRaw = Math.round(settings.cooldownMinutes * 60);
 
-  return fitToDuration(withCooldown, targetSeconds);
+  const safeWarmup = Math.max(30, Math.min(targetSeconds - 30, warmupSecondsRaw));
+  const safeCooldown = Math.max(30, Math.min(targetSeconds - safeWarmup, cooldownSecondsRaw));
+
+  const mainTargetSeconds = Math.max(30, targetSeconds - safeWarmup - safeCooldown);
+  const mainIntervals = intervals.filter((item) => item.type !== 'warmup' && item.type !== 'cooldown');
+
+  const mainBase = mainIntervals.length > 0
+    ? mainIntervals
+    : [{ type: 'interval' as const, duration_seconds: mainTargetSeconds, power_percent_ftp: 80 }];
+
+  const fittedMain = fitToDuration(mainBase, mainTargetSeconds);
+
+  const merged = [
+    {
+      type: 'warmup' as const,
+      duration_seconds: safeWarmup,
+      power_percent_ftp: Math.max(40, Math.min(85, Math.round(settings.warmupPowerPercent))),
+    },
+    ...fittedMain,
+    {
+      type: 'cooldown' as const,
+      duration_seconds: safeCooldown,
+      power_percent_ftp: Math.max(35, Math.min(75, Math.round(settings.cooldownPowerPercent))),
+    },
+  ];
+
+  return fitToDuration(merged, targetSeconds);
+}
+
+function applyIntensityAdjustment(intervals: WorkoutInterval[], adjustmentPercent: number): WorkoutInterval[] {
+  if (!adjustmentPercent) {
+    return intervals;
+  }
+
+  return intervals.map((interval) => {
+    if (interval.type === 'warmup' || interval.type === 'cooldown') {
+      return interval;
+    }
+
+    const adjustedPower = Math.round(interval.power_percent_ftp + adjustmentPercent);
+    return {
+      ...interval,
+      power_percent_ftp: Math.max(35, Math.min(170, adjustedPower)),
+    };
+  });
+}
+
+const GOAL_BANDS: Record<TrainingGoal, { work: [number, number]; recovery: [number, number] }> = {
+  'Endurance (Z2)': { work: [56, 75], recovery: [45, 65] },
+  Tempo: { work: [76, 88], recovery: [45, 62] },
+  'Sweet Spot': { work: [84, 97], recovery: [42, 60] },
+  Threshold: { work: [95, 105], recovery: [40, 58] },
+  VO2Max: { work: [106, 120], recovery: [40, 55] },
+  'Anaerobic Capacity': { work: [115, 130], recovery: [40, 55] },
+  'Sprint Power': { work: [130, 170], recovery: [40, 55] },
+  HIIT: { work: [124, 154], recovery: [40, 53] },
+  Climbing: { work: [90, 106], recovery: [48, 64] },
+  'Time Trial': { work: [90, 103], recovery: [48, 64] },
+  Polarized: { work: [110, 130], recovery: [55, 75] },
+  'Recovery Ride': { work: [45, 65], recovery: [40, 58] },
+  'Race Prep': { work: [95, 120], recovery: [42, 60] },
+  'Cadence Skills': { work: [75, 92], recovery: [45, 62] },
+  'Muscular Endurance': { work: [85, 97], recovery: [45, 62] },
+};
+
+const HIGH_INTENSITY_STRUCTURES: Partial<Record<TrainingGoal, { maxOn: number; on: number; recovery: number; minPower: number; recoveryPower: number }>> = {
+  VO2Max: { maxOn: 210, on: 160, recovery: 95, minPower: 108, recoveryPower: 52 },
+  HIIT: { maxOn: 75, on: 35, recovery: 70, minPower: 124, recoveryPower: 49 },
+  'Anaerobic Capacity': { maxOn: 75, on: 45, recovery: 105, minPower: 118, recoveryPower: 48 },
+  'Sprint Power': { maxOn: 35, on: 15, recovery: 45, minPower: 130, recoveryPower: 45 },
+};
+
+function clampToBand(value: number, band: [number, number]): number {
+  return Math.max(band[0], Math.min(band[1], value));
+}
+
+function mergeSteadyMainIntervals(main: WorkoutInterval[]): WorkoutInterval[] {
+  if (main.length === 0) {
+    return main;
+  }
+
+  const merged: WorkoutInterval[] = [{ ...main[0] }];
+
+  for (let i = 1; i < main.length; i += 1) {
+    const current = main[i];
+    const last = merged[merged.length - 1];
+    const similarPower = Math.abs(last.power_percent_ftp - current.power_percent_ftp) <= 4;
+
+    if (last.type === current.type && similarPower) {
+      last.duration_seconds += current.duration_seconds;
+      last.power_percent_ftp = Math.round((last.power_percent_ftp + current.power_percent_ftp) / 2);
+    } else {
+      merged.push({ ...current });
+    }
+  }
+
+  return merged;
+}
+
+function splitHighIntensityBlock(interval: WorkoutInterval, goal: TrainingGoal): WorkoutInterval[] {
+  const structure = HIGH_INTENSITY_STRUCTURES[goal];
+  if (!structure || interval.type !== 'interval') {
+    return [{ ...interval }];
+  }
+
+  if (interval.duration_seconds <= structure.maxOn) {
+    return [{ ...interval }];
+  }
+
+  const segments: WorkoutInterval[] = [];
+  let remaining = interval.duration_seconds;
+  const onPower = Math.max(structure.minPower, interval.power_percent_ftp);
+
+  while (remaining > 0) {
+    const onDuration = Math.min(structure.on, remaining);
+    segments.push({
+      type: 'interval',
+      duration_seconds: onDuration,
+      power_percent_ftp: onPower,
+    });
+    remaining -= onDuration;
+
+    if (remaining <= 0) {
+      break;
+    }
+
+    const recoveryDuration = Math.min(structure.recovery, remaining);
+    segments.push({
+      type: 'recovery',
+      duration_seconds: recoveryDuration,
+      power_percent_ftp: structure.recoveryPower,
+    });
+    remaining -= recoveryDuration;
+  }
+
+  return segments;
+}
+
+function applyGoalQualityProfile(
+  intervals: WorkoutInterval[],
+  targetSeconds: number,
+  goal: TrainingGoal,
+  style: WorkoutStyle
+): WorkoutInterval[] {
+  const band = GOAL_BANDS[goal];
+
+  const warmup = intervals.find((item) => item.type === 'warmup');
+  const cooldown = [...intervals].reverse().find((item) => item.type === 'cooldown');
+
+  const mainRaw = intervals.filter((item) => item.type !== 'warmup' && item.type !== 'cooldown');
+  let main = mainRaw.length > 0
+    ? mainRaw
+    : [{ type: 'interval' as const, duration_seconds: Math.max(60, targetSeconds - 120), power_percent_ftp: Math.round((band.work[0] + band.work[1]) / 2) }];
+
+  main = main.flatMap((interval) => splitHighIntensityBlock(interval, goal));
+
+  if (style === 'Steady' || goal === 'Time Trial' || goal === 'Climbing' || goal === 'Muscular Endurance') {
+    main = mergeSteadyMainIntervals(main);
+  }
+
+  main = main.map((interval) => {
+    const clampedPower = interval.type === 'recovery'
+      ? clampToBand(interval.power_percent_ftp, band.recovery)
+      : clampToBand(interval.power_percent_ftp, band.work);
+
+    return {
+      ...interval,
+      power_percent_ftp: Math.round(clampedPower),
+      duration_seconds: Math.max(20, Math.round(interval.duration_seconds)),
+    };
+  });
+
+  const rebuilt: WorkoutInterval[] = [
+    ...(warmup ? [{ ...warmup }] : []),
+    ...main,
+    ...(cooldown ? [{ ...cooldown }] : []),
+  ];
+
+  return fitToDuration(rebuilt, targetSeconds);
+}
+
+function applyErgSmoothing(intervals: WorkoutInterval[]): WorkoutInterval[] {
+  if (intervals.length === 0) {
+    return intervals;
+  }
+
+  const smoothed = intervals.map((interval) => ({ ...interval }));
+
+  for (let i = 1; i < smoothed.length; i += 1) {
+    const prev = smoothed[i - 1];
+    const current = smoothed[i];
+
+    if (current.type === 'warmup' || current.type === 'cooldown') {
+      continue;
+    }
+
+    const delta = current.power_percent_ftp - prev.power_percent_ftp;
+    if (Math.abs(delta) > 20) {
+      current.power_percent_ftp = prev.power_percent_ftp + (delta > 0 ? 20 : -20);
+    }
+
+    if (current.duration_seconds < 90 && current.type === 'interval') {
+      current.duration_seconds = 90;
+    }
+  }
+
+  const targetSeconds = intervals.reduce((sum, item) => sum + item.duration_seconds, 0);
+  return fitToDuration(smoothed, targetSeconds);
 }
 
 export async function generateWorkout(params: GenerateParams): Promise<{
@@ -168,6 +433,9 @@ export async function generateWorkout(params: GenerateParams): Promise<{
 }> {
   console.log('[workout-generator] Generating workout with params:', params);
 
+  const safeWarmupMinutes = Math.max(1, Math.min(5, params.warmupMinutes));
+  const safeCooldownMinutes = Math.max(1, Math.min(20, params.cooldownMinutes));
+
   const prompt = `Create a structured indoor cycling workout using the following parameters:
 
 FTP: ${params.ftp} watts
@@ -175,9 +443,15 @@ Duration: ${params.duration} minutes
 Goal: ${params.goal}
 Level: ${params.level}
 Style: ${params.style}
+Warmup: ${safeWarmupMinutes} minutes at ${params.warmupPowerPercent}% FTP
+Cooldown: ${safeCooldownMinutes} minutes at ${params.cooldownPowerPercent}% FTP
+Intensity adjustment target: ${params.intensityAdjustmentPercent ?? 0}%
+ERG smooth mode: ${params.ergSmoothMode ? 'enabled (avoid abrupt jumps)' : 'disabled'}
 
 Rules:
 - Always include warmup and cooldown.
+- Warmup must be exactly ${safeWarmupMinutes} minutes around ${params.warmupPowerPercent}% FTP.
+- Cooldown must be exactly ${safeCooldownMinutes} minutes around ${params.cooldownPowerPercent}% FTP.
 - Workout must fit exactly within ${params.duration} minutes (${params.duration * 60} seconds total).
 - Use realistic indoor cycling interval structures.
 - Power targets must be expressed as percentage of FTP (e.g., 75 means 75% of FTP).
@@ -214,11 +488,22 @@ Return the intervals array and a summary string.`;
 
     console.log('[workout-generator] Generated workout:', result);
 
-    const intervals = validateGeneratedIntervals(
+    let intervals = validateGeneratedIntervals(
       result.intervals as WorkoutInterval[],
       targetSeconds,
-      params.goal
+      params.goal,
+      {
+        warmupMinutes: safeWarmupMinutes,
+        cooldownMinutes: safeCooldownMinutes,
+        warmupPowerPercent: params.warmupPowerPercent,
+        cooldownPowerPercent: params.cooldownPowerPercent,
+      }
     );
+    intervals = applyIntensityAdjustment(intervals, params.intensityAdjustmentPercent ?? 0);
+    intervals = applyGoalQualityProfile(intervals, targetSeconds, params.goal, params.style);
+    if (params.ergSmoothMode) {
+      intervals = applyErgSmoothing(intervals);
+    }
     const totalSeconds = intervals.reduce((sum, i) => sum + i.duration_seconds, 0);
     console.log('[workout-generator] Total duration:', totalSeconds, 'seconds, target:', targetSeconds);
 
@@ -228,7 +513,21 @@ Return the intervals array and a summary string.`;
     };
   } catch (error) {
     console.error('[workout-generator] AI generation failed, using fallback workout:', error);
-    const fallbackIntervals = fitToDuration(buildFallbackWorkout(targetSeconds, params.goal), targetSeconds);
+    let fallbackIntervals = applyWarmupCooldown(
+      fitToDuration(buildFallbackWorkout(targetSeconds, params.goal), targetSeconds),
+      targetSeconds,
+      {
+        warmupMinutes: safeWarmupMinutes,
+        cooldownMinutes: safeCooldownMinutes,
+        warmupPowerPercent: params.warmupPowerPercent,
+        cooldownPowerPercent: params.cooldownPowerPercent,
+      }
+    );
+    fallbackIntervals = applyIntensityAdjustment(fallbackIntervals, params.intensityAdjustmentPercent ?? 0);
+    fallbackIntervals = applyGoalQualityProfile(fallbackIntervals, targetSeconds, params.goal, params.style);
+    if (params.ergSmoothMode) {
+      fallbackIntervals = applyErgSmoothing(fallbackIntervals);
+    }
 
     return {
       intervals: fallbackIntervals,

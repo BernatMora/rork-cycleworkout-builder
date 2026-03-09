@@ -3,6 +3,9 @@
   "compilerOptions": {
     "baseUrl": null,
     "strict": true,
+    "types": [
+      "bun-types"
+    ],
     "paths": {
       "@/*": [
         "./*"

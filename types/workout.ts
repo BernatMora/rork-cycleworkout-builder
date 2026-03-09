@@ -4,6 +4,8 @@ export interface WorkoutInterval {
   type: IntervalType;
   duration_seconds: number;
   power_percent_ftp: number;
+  cadence_rpm_target?: number;
+  posture_cue?: 'seated' | 'standing';
 }
 
 export type WorkoutDuration = 30 | 45 | 60 | 75 | 90;
@@ -28,6 +30,8 @@ export type TrainingGoal =
 export type FitnessLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 
 export type WorkoutStyle = 'Steady' | 'Intervals' | 'Pyramid' | 'Over/Under';
+
+export type ProgressionObjective = 'FTP' | 'Endurance' | 'VO2';
 
 export interface WorkoutFormData {
   ftp: string;

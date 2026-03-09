@@ -1,8 +1,13 @@
 {
   "expo": {
-    "name": "CycleWorkout Builder",
+    "name": "Cycle Plan Builder",
     "slug": "cycleworkout-builder",
     "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rork-app",
@@ -25,6 +30,7 @@
       "package": "app.rork.cycleworkout_builder"
     },
     "web": {
+      "bundler": "metro",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
