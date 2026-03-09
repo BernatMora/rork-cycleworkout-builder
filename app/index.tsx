@@ -14,8 +14,9 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
-import { Zap, Download, RefreshCw, ChevronRight, CalendarDays } from 'lucide-react-native';
+import { Zap, Download, RefreshCw, ChevronRight, CalendarDays, FlameKindling } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import PickerField from '@/components/PickerField';
@@ -183,6 +184,7 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isTabletLayout = width >= 900;
   const scrollRef = useRef<ScrollView>(null);
+  const router = useRouter();
 
   const [ftp, setFtp] = useState<string>('');
   const [duration, setDuration] = useState<string>('60 min');
@@ -414,6 +416,16 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.heroTitle}>ICTrainer{`\n`}Plan Builder</Text>
             <Text style={styles.heroSubtitle}>Create full training plans and download every session as .zwo</Text>
+            <TouchableOpacity
+              style={styles.punisherBannerBtn}
+              onPress={() => router.push('/punisher')}
+              activeOpacity={0.8}
+              testID="go-to-punisher-btn"
+            >
+              <FlameKindling size={16} color={Colors.accent} />
+              <Text style={styles.punisherBannerText}>Try ICTX Punisher — brutal spin/torque intervals</Text>
+              <ChevronRight size={16} color={Colors.accent} />
+            </TouchableOpacity>
           </View>
 
           <View style={isTabletLayout ? styles.tabletGrid : undefined}>
@@ -632,6 +644,24 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 6,
     lineHeight: 22,
+  },
+  punisherBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(249, 115, 22, 0.3)',
+  },
+  punisherBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.accent,
   },
   tabletGrid: {
     flexDirection: 'row',
