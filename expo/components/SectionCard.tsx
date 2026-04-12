@@ -23,6 +23,7 @@ interface SectionCardProps {
   icon?: React.ReactNode;
   collapsible?: boolean;
   defaultExpanded?: boolean;
+  defaultCollapsed?: boolean;
   children: React.ReactNode;
   headerRight?: React.ReactNode;
   testID?: string;
@@ -34,11 +35,14 @@ function SectionCardInner({
   icon,
   collapsible = false,
   defaultExpanded = true,
+  defaultCollapsed,
   children,
   headerRight,
   testID,
 }: SectionCardProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  // defaultCollapsed takes precedence if explicitly set
+  const initialExpanded = defaultCollapsed !== undefined ? !defaultCollapsed : defaultExpanded;
+  const [isExpanded, setIsExpanded] = useState(initialExpanded);
 
   const toggleExpanded = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);

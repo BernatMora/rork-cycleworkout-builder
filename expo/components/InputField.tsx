@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { X } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 
@@ -8,13 +8,14 @@ interface InputFieldProps {
   value: string;
   onChangeText: (value: string) => void;
   placeholder?: string;
-  keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad';
+  keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad' | 'number-pad';
   hint?: string;
   error?: string;
   clearable?: boolean;
   maxLength?: number;
   testID?: string;
   accessibilityLabel?: string;
+  containerStyle?: ViewStyle;
 }
 
 function InputFieldInner({
@@ -29,6 +30,7 @@ function InputFieldInner({
   maxLength,
   testID,
   accessibilityLabel,
+  containerStyle,
 }: InputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -37,7 +39,7 @@ function InputFieldInner({
   }, [onChangeText]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       <Text style={styles.label}>{label}</Text>
       <View
         style={[

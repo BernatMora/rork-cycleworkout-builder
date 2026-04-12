@@ -3,6 +3,8 @@ import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 
+type QuickModeVariant = 'default' | 'spin' | 'fun';
+
 interface QuickModeButtonProps {
   label: string;
   description?: string;
@@ -10,6 +12,7 @@ interface QuickModeButtonProps {
   onPress: () => void;
   selected?: boolean;
   compact?: boolean;
+  variant?: QuickModeVariant;
   testID?: string;
 }
 
@@ -20,6 +23,7 @@ function QuickModeButtonInner({
   onPress,
   selected = false,
   compact = false,
+  variant = 'default',
   testID,
 }: QuickModeButtonProps) {
   const handlePress = useCallback(() => {
@@ -27,12 +31,15 @@ function QuickModeButtonInner({
     onPress();
   }, [onPress]);
 
+  const variantStyle = variant === 'spin' ? styles.spin : variant === 'fun' ? styles.fun : undefined;
+
   return (
     <TouchableOpacity
       style={[
         styles.container,
         compact && styles.compact,
         selected && styles.selected,
+        variantStyle,
       ]}
       onPress={handlePress}
       activeOpacity={0.7}
@@ -78,6 +85,14 @@ const styles = StyleSheet.create({
   selected: {
     borderColor: Colors.accent,
     backgroundColor: 'rgba(249, 115, 22, 0.08)',
+  },
+  spin: {
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+    backgroundColor: 'rgba(168, 85, 247, 0.06)',
+  },
+  fun: {
+    borderColor: 'rgba(234, 179, 8, 0.3)',
+    backgroundColor: 'rgba(234, 179, 8, 0.06)',
   },
   iconContainer: {
     marginRight: 10,
