@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "installCommand": "cd expo && npm install",
+  "installCommand": "cd expo && npm install --legacy-peer-deps",
   "buildCommand": "cd expo && npx expo export --platform web",
   "outputDirectory": "expo/dist"
 }
