@@ -23,6 +23,14 @@ import JSZip from 'jszip';
 import Colors from '@/constants/colors';
 import PickerField from '@/components/PickerField';
 import WorkoutPreview from '@/components/WorkoutPreview';
+// Nous components modulars
+import { TabBar } from '@/components/TabBar';
+import { Button } from '@/components/Button';
+import { SectionCard } from '@/components/SectionCard';
+import { InputField } from '@/components/InputField';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
+import { QuickModeButton } from '@/components/QuickModeButton';
+import { StatusBar as AppStatusBar } from '@/components/StatusBar';
 import {
   WorkoutDuration,
   TrainingGoal,
@@ -4880,66 +4888,43 @@ export default function HomeScreen() {
               })}
             </View>
 
-            <View style={styles.mainTabsRow}>
-              {(['Builder', 'Calendar', 'Analysis'] as MainViewTab[]).map((tab) => {
-                const active = mainViewTab === tab;
-                const label = tab === 'Builder' ? t('tabBuilder') : tab === 'Calendar' ? t('tabCalendar') : t('tabAnalysis');
-                return (
-                  <TouchableOpacity
-                    key={tab}
-                    style={[styles.mainTabChip, active ? styles.mainTabChipActive : undefined]}
-                    onPress={() => setMainViewTab(tab)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.mainTabChipText, active ? styles.mainTabChipTextActive : undefined]}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <TabBar
+              tabs={[
+                { key: 'Builder', label: t('tabBuilder') },
+                { key: 'Calendar', label: t('tabCalendar') },
+                { key: 'Analysis', label: t('tabAnalysis') },
+              ]}
+              activeTab={mainViewTab}
+              onTabChange={(tab) => setMainViewTab(tab as MainViewTab)}
+            />
 
-            <TouchableOpacity
-              style={[styles.simpleModeToggle, simpleMode ? styles.simpleModeToggleActive : undefined]}
-              onPress={() => setSimpleMode((prev) => !prev)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.simpleModeToggleText, simpleMode ? styles.simpleModeToggleTextActive : undefined]}>
-                {simpleMode ? t('simpleOn') : t('simpleOff')}
-              </Text>
-            </TouchableOpacity>
+            <ToggleSwitch
+              label={simpleMode ? t('simpleOn') : t('simpleOff')}
+              value={simpleMode}
+              onValueChange={setSimpleMode}
+            />
           </View>
 
           <View style={isTabletLayout ? styles.tabletGrid : undefined}>
             <View style={[styles.formCard, isTabletLayout ? styles.formCardTablet : undefined]}>
-              <View style={styles.formSection}>
-                <Text style={styles.inputLabel}>{t('ftpLabel')}</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={ftp}
-                  onChangeText={setFtp}
-                  placeholder={t('ftpPlaceholder')}
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="number-pad"
-                  returnKeyType="done"
-                  testID="ftp-input"
-                />
-                {ftp.length > 0 && !isFormValid && (
-                  <Text style={styles.errorHint}>{t('ftpHint')}</Text>
-                )}
-              </View>
+              <InputField
+                label={t('ftpLabel')}
+                value={ftp}
+                onChangeText={setFtp}
+                placeholder={t('ftpPlaceholder')}
+                keyboardType="number-pad"
+                error={ftp.length > 0 && !isFormValid ? t('ftpHint') : undefined}
+                testID="ftp-input"
+              />
 
-              <View style={styles.formSection}>
-                <Text style={styles.inputLabel}>{t('maxHrLabel')}</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={maxHr}
-                  onChangeText={setMaxHr}
-                  placeholder={t('maxHrPlaceholder')}
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="number-pad"
-                  returnKeyType="done"
-                  testID="maxhr-input"
-                />
-              </View>
+              <InputField
+                label={t('maxHrLabel')}
+                value={maxHr}
+                onChangeText={setMaxHr}
+                placeholder={t('maxHrPlaceholder')}
+                keyboardType="number-pad"
+                testID="maxhr-input"
+              />
 
               <PickerField
                 label={t('durationLabel')}
@@ -4950,35 +4935,31 @@ export default function HomeScreen() {
               />
 
               {!simpleMode && (
-              <View style={styles.quickModesCard}>
-                <Text style={styles.quickModesTitle}>{t('quickModesTitle')}</Text>
-                <Text style={styles.quickModesSubtitle}>{t('quickModesSubtitle')}</Text>
-
+              <SectionCard 
+                title={t('quickModesTitle')} 
+                subtitle={t('quickModesSubtitle')}
+                collapsible
+                defaultCollapsed={false}
+              >
                 <Text style={styles.quickModesSectionTitle}>{t('normalModesTitle')}</Text>
                 <View style={styles.quickModesGrid}>
                   {NORMAL_MODE_PRESETS.map((preset) => (
-                    <TouchableOpacity
+                    <QuickModeButton
                       key={preset.id}
-                      style={styles.quickModeButton}
+                      label={preset.label}
                       onPress={() => applyQuickModePreset(preset)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.quickModeButtonText}>{preset.label}</Text>
-                    </TouchableOpacity>
+                    />
                   ))}
                 </View>
 
                 <Text style={[styles.quickModesSectionTitle, { marginTop: 10 }]}>{t('balancedModesTitle')}</Text>
                 <View style={styles.quickModesGrid}>
                   {BALANCED_MODE_PRESETS.map((preset) => (
-                    <TouchableOpacity
+                    <QuickModeButton
                       key={preset.id}
-                      style={styles.quickModeButton}
+                      label={preset.label}
                       onPress={() => applyQuickModePreset(preset)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.quickModeButtonText}>{preset.label}</Text>
-                    </TouchableOpacity>
+                    />
                   ))}
                 </View>
                 {triFocusMode && (
@@ -4989,14 +4970,12 @@ export default function HomeScreen() {
                   <Text style={[styles.quickModesSectionTitle, { marginTop: 0 }]}>{t('spinStudioTitle')}</Text>
                   <View style={styles.quickModesGrid}>
                     {SPIN_MODE_PRESETS.map((preset) => (
-                      <TouchableOpacity
+                      <QuickModeButton
                         key={preset.id}
-                        style={[styles.quickModeButton, styles.quickModeSpinButton]}
+                        label={preset.label}
                         onPress={() => applyQuickModePreset(preset)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.quickModeButtonText}>{preset.label}</Text>
-                      </TouchableOpacity>
+                        variant="spin"
+                      />
                     ))}
                   </View>
                 </View>
@@ -5004,25 +4983,21 @@ export default function HomeScreen() {
                 <Text style={[styles.quickModesSectionTitle, { marginTop: 10 }]}>{t('funTitle')}</Text>
                 <View style={styles.quickModesGrid}>
                   {FUN_MODE_PRESETS.map((preset) => (
-                    <TouchableOpacity
+                    <QuickModeButton
                       key={preset.id}
-                      style={[styles.quickModeButton, styles.quickModeFunButton]}
+                      label={preset.label}
                       onPress={() => applyQuickModePreset(preset)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.quickModeButtonText}>{preset.label}</Text>
-                    </TouchableOpacity>
+                      variant="fun"
+                    />
                   ))}
-                  <TouchableOpacity
-                    style={[styles.quickModeButton, styles.quickModeFunButton]}
+                  <QuickModeButton
+                    label={`${t('surpriseMe')} 🎲`}
                     onPress={applySurpriseMode}
-                    activeOpacity={0.8}
+                    variant="fun"
                     testID="surprise-mode-button"
-                  >
-                    <Text style={styles.quickModeButtonText}>{t('surpriseMe')} 🎲</Text>
-                  </TouchableOpacity>
+                  />
                 </View>
-              </View>
+              </SectionCard>
               )}
 
               <PickerField
@@ -5363,8 +5338,7 @@ export default function HomeScreen() {
               )}
 
               {!simpleMode && (
-              <View style={styles.ftpTestCard}>
-                <Text style={styles.favoritesTitle}>{t('guidedFtpTests')}</Text>
+              <SectionCard title={t('guidedFtpTests')}>
                 <PickerField
                   label={t('protocolLabel')}
                   value={selectedFtpProtocol}
@@ -5372,92 +5346,74 @@ export default function HomeScreen() {
                   onSelect={(v) => setSelectedFtpProtocol(v as FtpTestProtocol)}
                   testID="ftp-protocol-picker"
                 />
-                <TouchableOpacity
-                  style={styles.secondaryInlineButton}
+                <Button
+                  variant="secondary"
+                  size="small"
                   onPress={handleCreateFtpTest}
-                  activeOpacity={0.75}
                 >
-                  <Text style={styles.secondaryInlineButtonText}>{t('createFtpTestWorkout')}</Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={[styles.textInput, { marginTop: 8 }]}
+                  {t('createFtpTestWorkout')}
+                </Button>
+                <InputField
+                  label=""
                   value={ftpTestPowerInput}
                   onChangeText={setFtpTestPowerInput}
                   placeholder={t('ftpPowerPlaceholder')}
-                  placeholderTextColor={Colors.textMuted}
                   keyboardType="number-pad"
-                  returnKeyType="done"
                   testID="ftp-test-power-input"
                 />
-                <TouchableOpacity
-                  style={styles.secondaryInlineButton}
+                <Button
+                  variant="secondary"
+                  size="small"
                   onPress={handleApplyFtpFromTest}
-                  activeOpacity={0.75}
                 >
-                  <Text style={styles.secondaryInlineButtonText}>{t('applyFtpFromTest')}</Text>
-                </TouchableOpacity>
+                  {t('applyFtpFromTest')}
+                </Button>
+              </SectionCard>
+              )}
+
+              {!simpleMode && (
+              <View style={styles.inlineFieldsRow}>
+                <InputField
+                  label={t('warmupMin')}
+                  value={warmupMinutes}
+                  onChangeText={setWarmupMinutes}
+                  placeholder={t('warmupPlaceholder')}
+                  keyboardType="number-pad"
+                  testID="warmup-minutes-input"
+                  containerStyle={styles.inlineField}
+                />
+                <InputField
+                  label={t('warmupPct')}
+                  value={warmupPowerPercent}
+                  onChangeText={setWarmupPowerPercent}
+                  placeholder={t('warmupPctPlaceholder')}
+                  keyboardType="number-pad"
+                  testID="warmup-power-input"
+                  containerStyle={styles.inlineField}
+                />
               </View>
               )}
 
               {!simpleMode && (
               <View style={styles.inlineFieldsRow}>
-                <View style={[styles.formSection, styles.inlineField]}>
-                  <Text style={styles.inputLabel}>{t('warmupMin')}</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={warmupMinutes}
-                    onChangeText={setWarmupMinutes}
-                    placeholder={t('warmupPlaceholder')}
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="number-pad"
-                    returnKeyType="done"
-                    testID="warmup-minutes-input"
-                  />
-                </View>
-                <View style={[styles.formSection, styles.inlineField]}>
-                  <Text style={styles.inputLabel}>{t('warmupPct')}</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={warmupPowerPercent}
-                    onChangeText={setWarmupPowerPercent}
-                    placeholder={t('warmupPctPlaceholder')}
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="number-pad"
-                    returnKeyType="done"
-                    testID="warmup-power-input"
-                  />
-                </View>
-              </View>
-              )}
-
-              {!simpleMode && (
-              <View style={styles.inlineFieldsRow}>
-                <View style={[styles.formSection, styles.inlineField]}>
-                  <Text style={styles.inputLabel}>{t('cooldownMin')}</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={cooldownMinutes}
-                    onChangeText={setCooldownMinutes}
-                    placeholder={t('cooldownPlaceholder')}
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="number-pad"
-                    returnKeyType="done"
-                    testID="cooldown-minutes-input"
-                  />
-                </View>
-                <View style={[styles.formSection, styles.inlineField]}>
-                  <Text style={styles.inputLabel}>{t('cooldownPct')}</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={cooldownPowerPercent}
-                    onChangeText={setCooldownPowerPercent}
-                    placeholder={t('cooldownPctPlaceholder')}
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="number-pad"
-                    returnKeyType="done"
-                    testID="cooldown-power-input"
-                  />
-                </View>
+                <InputField
+                  label={t('cooldownMin')}
+                  value={cooldownMinutes}
+                  onChangeText={setCooldownMinutes}
+                  placeholder={t('cooldownPlaceholder')}
+                  keyboardType="number-pad"
+                  testID="cooldown-minutes-input"
+                  containerStyle={styles.inlineField}
+                />
+                <InputField
+                  label={t('cooldownPct')}
+                  value={cooldownPowerPercent}
+                  onChangeText={setCooldownPowerPercent}
+                  placeholder={t('cooldownPctPlaceholder')}
+                  keyboardType="number-pad"
+                  testID="cooldown-power-input"
+                  containerStyle={styles.inlineField}
+                />
               </View>
               )}
 
@@ -5659,26 +5615,20 @@ export default function HomeScreen() {
             </View>
 
             <Animated.View style={[{ transform: [{ scale: pulseAnim }] }, isTabletLayout ? styles.actionsTablet : undefined]}>
-              <TouchableOpacity
-                style={[styles.generateButton, !isFormValid && styles.generateButtonDisabled]}
+              <Button
+                variant="primary"
+                size="large"
                 onPress={handleGenerate}
-                activeOpacity={0.8}
                 disabled={!isFormValid || isPending}
+                loading={isPending}
+                icon={<Zap size={20} color="#FFF" fill="#FFF" />}
                 testID="generate-button"
               >
-                {isPending ? (
-                  <View style={styles.loadingRow}>
-                    <ActivityIndicator color="#FFF" size="small" />
-                    <Text style={styles.generateButtonText}>{isSingleWorkoutMode ? t('generatingWorkout') : t('generatingPlan')}</Text>
-                  </View>
-                ) : (
-                  <View style={styles.loadingRow}>
-                    <Zap size={20} color="#FFF" fill="#FFF" />
-                    <Text style={styles.generateButtonText}>{isSingleWorkoutMode ? t('generateWorkout') : t('generatePlan')}</Text>
-                    <ChevronRight size={18} color="rgba(255,255,255,0.6)" />
-                  </View>
-                )}
-              </TouchableOpacity>
+                {isPending
+                  ? (isSingleWorkoutMode ? t('generatingWorkout') : t('generatingPlan'))
+                  : (isSingleWorkoutMode ? t('generateWorkout') : t('generatePlan'))
+                }
+              </Button>
             </Animated.View>
           </View>
 
@@ -5950,11 +5900,12 @@ export default function HomeScreen() {
                     </Text>
                   </TouchableOpacity>
 
-                  {downloadStatus.length > 0 && (
-                    <View style={styles.downloadStatusCard} testID="download-status">
-                      <Text style={styles.downloadStatusText}>{downloadStatus}</Text>
-                    </View>
-                  )}
+                  <AppStatusBar
+                    message={downloadStatus}
+                    visible={downloadStatus.length > 0}
+                    type="success"
+                    testID="download-status"
+                  />
 
                   {!simpleMode && (
                   <View style={styles.integrationRow}>
@@ -5981,16 +5932,20 @@ export default function HomeScreen() {
                   </View>
                   )}
 
-                  {!simpleMode && comparisonStatus.length > 0 && (
-                    <View style={styles.downloadStatusCard}>
-                      <Text style={styles.downloadStatusText}>{comparisonStatus}</Text>
-                    </View>
+                  {!simpleMode && (
+                    <AppStatusBar
+                      message={comparisonStatus}
+                      visible={comparisonStatus.length > 0}
+                      type="info"
+                    />
                   )}
 
-                  {!simpleMode && backupStatus.length > 0 && (
-                    <View style={styles.downloadStatusCard}>
-                      <Text style={styles.downloadStatusText}>{backupStatus}</Text>
-                    </View>
+                  {!simpleMode && (
+                    <AppStatusBar
+                      message={backupStatus}
+                      visible={backupStatus.length > 0}
+                      type="info"
+                    />
                   )}
 
                   {!simpleMode && (
