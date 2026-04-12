@@ -1,0 +1,10 @@
+{
+  "name": "rork-cycleworkout-builder",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:expo": "cd expo && npm install",
+    "build": "cd expo && npx expo export --platform web",
+    "start": "cd expo && npm start"
+  }
+}

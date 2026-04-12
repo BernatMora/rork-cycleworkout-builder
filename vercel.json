@@ -1,5 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "rootDirectory": "expo"
+  "installCommand": "cd expo && npm install",
+  "buildCommand": "cd expo && npx expo export --platform web",
+  "outputDirectory": "expo/dist"
 }
