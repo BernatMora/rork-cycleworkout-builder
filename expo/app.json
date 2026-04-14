@@ -2,7 +2,7 @@
   "expo": {
     "name": "Cycle Plan Builder",
     "slug": "cycleworkout-builder",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "platforms": [
       "ios",
       "android",
