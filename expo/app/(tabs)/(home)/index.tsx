@@ -2440,7 +2440,7 @@ export default function HomeScreen() {
   const [style, setStyle] = useState<WorkoutStyle>('Intervals');
   const [planWeeks, setPlanWeeks] = useState<string>('1 week');
   const [sessionsPerWeek, setSessionsPerWeek] = useState<string>('1 session');
-  const [exportFileFormat, setExportFileFormat] = useState<ExportFileFormat>('.ictx');
+  const [exportFileFormat, setExportFileFormat] = useState<ExportFileFormat>('.zwo');
   const [exportName, setExportName] = useState<string>('');
   const [exportFilenameTemplate, setExportFilenameTemplate] = useState<string>(EXPORT_FILENAME_TEMPLATE_PRESETS[0]);
   const [filenameGoalValue, setFilenameGoalValue] = useState<string>('');
@@ -2936,7 +2936,7 @@ export default function HomeScreen() {
                 ...entry,
                 format: EXPORT_FILE_FORMATS.includes(entry?.format as ExportFileFormat)
                   ? entry.format
-                  : '.ictx',
+                  : '.zwo',
               })));
             }
           } catch {

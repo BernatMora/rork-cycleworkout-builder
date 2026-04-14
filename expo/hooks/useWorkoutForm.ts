@@ -120,7 +120,7 @@ const defaultFormState: WorkoutFormState = {
   planWeeks: '1 week',
   sessionsPerWeek: '1 session',
   selectedTrainingDays: ['Tue', 'Thu', 'Sat'],
-  exportFileFormat: '.ictx',
+  exportFileFormat: '.zwo',
   exportName: '',
   exportFilenameTemplate: EXPORT_FILENAME_TEMPLATE_PRESETS[0],
   workoutDisplayName: '',
