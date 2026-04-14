@@ -16,8 +16,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation } from '@tanstack/react-query';
-import { Zap, Download, RefreshCw, ChevronRight, CalendarDays, Bike, CheckCircle2, Upload, FileDown } from 'lucide-react-native';
+import { Zap, Download, RefreshCw, ChevronRight, CalendarDays, Bike, CheckCircle2, Upload, FileDown, Pencil } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import { usePlanContext } from '@/contexts/PlanContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import JSZip from 'jszip';
 import Colors from '@/constants/colors';
@@ -2454,14 +2456,14 @@ export default function HomeScreen() {
   const [warmupPowerPercent, setWarmupPowerPercent] = useState<string>('55');
   const [cooldownPowerPercent, setCooldownPowerPercent] = useState<string>('45');
 
-  const [plan, setPlan] = useState<PlanWorkout[]>([]);
-  const [selectedPlanWorkoutId, setSelectedPlanWorkoutId] = useState<string>('');
+  const { plan, setPlan, selectedPlanWorkoutId, setSelectedPlanWorkoutId, selectedWorkout: ctxSelectedWorkout } = usePlanContext();
+  const router = useRouter();
   const [downloadStatus, setDownloadStatus] = useState<string>('');
   const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>([]);
   const [exportHistorySearch, setExportHistorySearch] = useState<string>('');
   const [exportHistoryFilter, setExportHistoryFilter] = useState<ExportHistoryFilter>('All');
   const [simpleMode, setSimpleMode] = useState<boolean>(true);
-  const [mainViewTab, setMainViewTab] = useState<MainViewTab>('Builder');
+  const mainViewTab: MainViewTab = 'Builder';
   const [appLanguage, setAppLanguage] = useState<AppLanguage>('en');
   const [regeneratingWorkoutId, setRegeneratingWorkoutId] = useState<string>('');
   const [sessionFavorites, setSessionFavorites] = useState<SessionFavorite[]>([]);
@@ -4859,7 +4861,7 @@ export default function HomeScreen() {
         >
           <View style={styles.heroSection}>
             <View style={styles.brandRow}>
-              <Image source={require('../assets/images/icon.png')} style={styles.brandLogo} resizeMode="contain" />
+              <Image source={require('../../../assets/images/icon.png')} style={styles.brandLogo} resizeMode="contain" />
             </View>
             <View style={styles.badge}>
               <CalendarDays size={14} color={Colors.accent} />
@@ -4871,32 +4873,6 @@ export default function HomeScreen() {
                 ? `${t('subtitleSingle')} ${EXPORT_FORMAT_LABELS[exportFileFormat]}`
                 : `${t('subtitlePlan')} ${EXPORT_FORMAT_LABELS[exportFileFormat]}`}
             </Text>
-
-            <View style={styles.languageRow}>
-              {(['ca', 'es', 'en'] as AppLanguage[]).map((lang) => {
-                const active = appLanguage === lang;
-                return (
-                  <TouchableOpacity
-                    key={lang}
-                    style={[styles.languageChip, active ? styles.languageChipActive : undefined]}
-                    onPress={() => setAppLanguage(lang)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.languageChipText, active ? styles.languageChipTextActive : undefined]}>{lang.toUpperCase()}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <TabBar
-              tabs={[
-                { key: 'Builder', label: t('tabBuilder') },
-                { key: 'Calendar', label: t('tabCalendar') },
-                { key: 'Analysis', label: t('tabAnalysis') },
-              ]}
-              activeTab={mainViewTab}
-              onTabChange={(tab) => setMainViewTab(tab as MainViewTab)}
-            />
 
             <ToggleSwitch
               label={simpleMode ? t('simpleOn') : t('simpleOff')}
@@ -5872,6 +5848,19 @@ export default function HomeScreen() {
                     ftp={parseInt(ftp, 10) || 200}
                     maxHr={maxHrNum > 0 ? maxHrNum : undefined}
                   />
+
+                  <TouchableOpacity
+                    style={styles.editWorkoutButton}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({ pathname: '/edit-workout', params: { id: selectedWorkout.id, ftp: ftp || '200' } });
+                    }}
+                    activeOpacity={0.7}
+                    testID="edit-workout-button"
+                  >
+                    <Pencil size={16} color={Colors.accent} />
+                    <Text style={styles.editWorkoutButtonText}>Edit Workout</Text>
+                  </TouchableOpacity>
 
                   {exportValidation && (
                     <View style={styles.validationCard}>
@@ -6994,6 +6983,24 @@ const styles = StyleSheet.create({
     color: Colors.warning,
     fontWeight: '700' as const,
     lineHeight: 18,
+  },
+  editWorkoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(249,115,22,0.08)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    borderStyle: 'dashed' as const,
+  },
+  editWorkoutButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.accent,
   },
   downloadButton: {
     flexDirection: 'row',

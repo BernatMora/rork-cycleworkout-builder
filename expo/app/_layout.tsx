@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import Colors from "@/constants/colors";
+import { PlanProvider } from "@/contexts/PlanContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,7 +19,18 @@ function RootLayoutNav() {
         contentStyle: { backgroundColor: Colors.background },
       }}
     >
-      <Stack.Screen name="index" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="edit-workout"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          headerTitle: "Edit Workout",
+          headerStyle: { backgroundColor: Colors.surface },
+          headerTintColor: Colors.text,
+          headerTitleStyle: { fontWeight: '700' as const },
+        }}
+      />
     </Stack>
   );
 }
@@ -86,10 +98,12 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView>
-        <StatusBar style="light" />
-        <RootLayoutNav />
-      </GestureHandlerRootView>
+      <PlanProvider>
+        <GestureHandlerRootView>
+          <StatusBar style="light" />
+          <RootLayoutNav />
+        </GestureHandlerRootView>
+      </PlanProvider>
     </QueryClientProvider>
   );
 }

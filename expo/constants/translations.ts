@@ -241,6 +241,12 @@ export const TRANSLATIONS = {
     analyticsMinutes: 'Minutes: {value}',
     analyticsCompleted: 'Completed: {done}/{total}',
     analyticsZonesPrefix: 'Zones (min):',
+    editWorkout: 'Edit Workout',
+    editWorkoutSaved: 'Workout changes saved.',
+    tabProfile: 'Profile',
+    noDataYet: 'No Data Yet',
+    noPlanYet: 'No Plan Yet',
+    generateFirst: 'Generate a training plan in the Builder tab first.',
   },
   ca: {
     badge: 'Planificador de Cicle',
@@ -482,6 +488,12 @@ export const TRANSLATIONS = {
     analyticsMinutes: 'Minuts: {value}',
     analyticsCompleted: 'Completades: {done}/{total}',
     analyticsZonesPrefix: 'Zones (min):',
+    editWorkout: 'Edita entrenament',
+    editWorkoutSaved: 'Canvis desats a l\'entrenament.',
+    tabProfile: 'Perfil',
+    noDataYet: 'Sense dades',
+    noPlanYet: 'Sense pla',
+    generateFirst: 'Genera un pla d\'entrenament al tab Constructor primer.',
   },
   es: {
     badge: 'Planificador Ciclista',
@@ -723,6 +735,12 @@ export const TRANSLATIONS = {
     analyticsMinutes: 'Minutos: {value}',
     analyticsCompleted: 'Completadas: {done}/{total}',
     analyticsZonesPrefix: 'Zonas (min):',
+    editWorkout: 'Editar entrenamiento',
+    editWorkoutSaved: 'Cambios del entrenamiento guardados.',
+    tabProfile: 'Perfil',
+    noDataYet: 'Sin datos',
+    noPlanYet: 'Sin plan',
+    generateFirst: 'Genera un plan de entrenamiento en la pestaña Constructor primero.',
   },
 } as const;
 
