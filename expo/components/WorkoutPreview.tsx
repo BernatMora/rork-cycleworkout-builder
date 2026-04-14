@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useMemo, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
 import { WorkoutInterval } from '@/types/workout';
 import { formatDuration, getZoneColor, getZoneName, getHrRangeFromPower, getRpeFromPower } from '@/utils/zwo';
 import Colors from '@/constants/colors';
@@ -9,6 +9,47 @@ interface WorkoutPreviewProps {
   tss: number;
   ftp: number;
   maxHr?: number;
+}
+
+function AnimatedBar({
+  widthPercent,
+  heightPercent,
+  color,
+  index,
+}: {
+  widthPercent: number;
+  heightPercent: number;
+  color: string;
+  index: number;
+}) {
+  const animValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animValue, {
+      toValue: 1,
+      duration: 400,
+      delay: index * 25,
+      useNativeDriver: false,
+    }).start();
+  }, [animValue, index]);
+
+  const animatedHeight = animValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%' as unknown as number, `${heightPercent}%` as unknown as number],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.bar,
+        {
+          width: `${widthPercent}%` as unknown as number,
+          height: animatedHeight,
+          backgroundColor: color,
+        },
+      ]}
+    />
+  );
 }
 
 export default function WorkoutPreview({ intervals, tss, ftp, maxHr }: WorkoutPreviewProps) {
@@ -33,7 +74,7 @@ export default function WorkoutPreview({ intervals, tss, ftp, maxHr }: WorkoutPr
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{tss}</Text>
+            <Text style={[styles.statValue, styles.statValueAccent]}>{tss}</Text>
             <Text style={styles.statLabel}>Est. TSS</Text>
           </View>
           <View style={styles.statDivider} />
@@ -45,6 +86,11 @@ export default function WorkoutPreview({ intervals, tss, ftp, maxHr }: WorkoutPr
       </View>
 
       <View style={styles.chartContainer}>
+        <View style={styles.chartGrid}>
+          <View style={styles.gridLine} />
+          <View style={styles.gridLine} />
+          <View style={styles.gridLine} />
+        </View>
         <View style={styles.chart}>
           {intervals.map((interval, index) => {
             const widthPercent = (interval.duration_seconds / totalDuration) * 100;
@@ -52,16 +98,12 @@ export default function WorkoutPreview({ intervals, tss, ftp, maxHr }: WorkoutPr
             const color = getZoneColor(interval.power_percent_ftp);
 
             return (
-              <View
+              <AnimatedBar
                 key={`bar-${index}`}
-                style={[
-                  styles.bar,
-                  {
-                    width: `${widthPercent}%` as unknown as number,
-                    height: `${heightPercent}%` as unknown as number,
-                    backgroundColor: color,
-                  },
-                ]}
+                widthPercent={widthPercent}
+                heightPercent={heightPercent}
+                color={color}
+                index={index}
               />
             );
           })}
@@ -123,6 +165,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   header: {
     padding: 16,
@@ -139,8 +186,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceLight,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   stat: {
     flex: 1,
@@ -148,15 +197,19 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 18,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  statValueAccent: {
     color: Colors.accent,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
     textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
+    fontWeight: '600' as const,
   },
   statDivider: {
     width: 1,
@@ -166,7 +219,20 @@ const styles = StyleSheet.create({
   chartContainer: {
     paddingHorizontal: 16,
     paddingBottom: 12,
-    height: 120,
+    height: 130,
+    position: 'relative',
+  },
+  chartGrid: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    top: 0,
+    bottom: 12,
+    justifyContent: 'space-evenly',
+  },
+  gridLine: {
+    height: 1,
+    backgroundColor: Colors.shimmer,
   },
   chart: {
     flex: 1,
@@ -175,25 +241,26 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   bar: {
-    borderRadius: 2,
+    borderRadius: 3,
     minWidth: 3,
   },
   chartBaseline: {
-    height: 1,
+    height: 2,
     backgroundColor: Colors.border,
     marginTop: 2,
+    borderRadius: 1,
   },
   tableHeader: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     backgroundColor: Colors.surfaceLight,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
   tableHeaderText: {
     fontSize: 10,
-    fontWeight: '600' as const,
+    fontWeight: '700' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.8,
@@ -208,7 +275,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tableRowAlt: {
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    backgroundColor: Colors.shimmer,
   },
   cellText: {
     fontSize: 13,
@@ -216,9 +283,9 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
   colType: {
     flex: 2.5,

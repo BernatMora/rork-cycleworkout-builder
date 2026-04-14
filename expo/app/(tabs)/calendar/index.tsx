@@ -1,13 +1,14 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CalendarDays, CheckCircle2 } from 'lucide-react-native';
+import { CalendarDays, Target, Clock, Flame } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { usePlanContext, PlanWorkout } from '@/contexts/PlanContext';
@@ -25,6 +26,34 @@ function getReadinessColor(score: number): string {
   if (score >= 70) return Colors.success;
   if (score >= 45) return Colors.warning;
   return Colors.error;
+}
+
+function FadeInView({ delay, children }: { delay: number; children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 350,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 350,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [opacity, translateY, delay]);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
 }
 
 export default function CalendarScreen() {
@@ -93,7 +122,9 @@ export default function CalendarScreen() {
   if (plan.length === 0) {
     return (
       <View style={[styles.emptyContainer, { paddingTop: insets.top + 60 }]}>
-        <CalendarDays size={48} color={Colors.textMuted} />
+        <View style={styles.emptyIconWrap}>
+          <CalendarDays size={32} color={Colors.accent} />
+        </View>
         <Text style={styles.emptyTitle}>No Plan Yet</Text>
         <Text style={styles.emptySubtitle}>Generate a training plan in the Builder tab first.</Text>
       </View>
@@ -108,95 +139,113 @@ export default function CalendarScreen() {
       >
         <Text style={styles.screenTitle}>{t('weeklyCalendar')}</Text>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{analytics.totalTss}</Text>
-            <Text style={styles.statLabel}>Total TSS</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{analytics.totalMinutes}m</Text>
-            <Text style={styles.statLabel}>Duration</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{analytics.totalSessions}</Text>
-            <Text style={styles.statLabel}>Sessions</Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t('weeklyCalendar')}</Text>
-          {planByWeek.map(({ week, sessions }) => (
-            <View key={`w-${week}`} style={styles.weekRow}>
-              <Text style={styles.weekLabel}>W{week}</Text>
-              <View style={styles.sessionsRow}>
-                {sessions.map((s) => {
-                  const isActive = selectedWorkout?.id === s.id;
-                  return (
-                    <TouchableOpacity
-                      key={s.id}
-                      style={[styles.sessionChip, isActive && styles.sessionChipActive]}
-                      onPress={() => handleSelectWorkout(s.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.phaseDot, { backgroundColor: getPhaseColor(s.phase) }]} />
-                      <Text style={[styles.sessionChipText, isActive && styles.sessionChipTextActive]}>
-                        S{s.sessionInWeek}
-                      </Text>
-                      <Text style={styles.sessionTssText}>{s.tss}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+        <FadeInView delay={0}>
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, styles.statCardAccent]}>
+              <Flame size={14} color={Colors.accent} />
+              <Text style={styles.statValue}>{analytics.totalTss}</Text>
+              <Text style={styles.statLabel}>TSS</Text>
             </View>
-          ))}
-        </View>
+            <View style={styles.statCard}>
+              <Clock size={14} color={Colors.zone1} />
+              <Text style={[styles.statValue, { color: Colors.zone1 }]}>{analytics.totalMinutes}m</Text>
+              <Text style={styles.statLabel}>Duration</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Target size={14} color={Colors.zone2} />
+              <Text style={[styles.statValue, { color: Colors.zone2 }]}>{analytics.totalSessions}</Text>
+              <Text style={styles.statLabel}>Sessions</Text>
+            </View>
+          </View>
+        </FadeInView>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t('realDaysCalendar')}</Text>
-          {planByDay.map(({ day, sessions }) => (
-            <View key={`d-${day}`} style={styles.weekRow}>
-              <Text style={styles.weekLabel}>{day}</Text>
-              <View style={styles.sessionsRow}>
-                {sessions.length === 0 ? (
-                  <Text style={styles.emptyDayText}>—</Text>
-                ) : (
-                  sessions.map((s) => {
+        <FadeInView delay={80}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t('weeklyCalendar')}</Text>
+            {planByWeek.map(({ week, sessions }, weekIdx) => (
+              <View key={`w-${week}`} style={[styles.weekRow, weekIdx === planByWeek.length - 1 && styles.weekRowLast]}>
+                <View style={styles.weekLabelWrap}>
+                  <Text style={styles.weekLabel}>W{week}</Text>
+                </View>
+                <View style={styles.sessionsRow}>
+                  {sessions.map((s) => {
                     const isActive = selectedWorkout?.id === s.id;
                     return (
                       <TouchableOpacity
-                        key={`dc-${s.id}`}
+                        key={s.id}
                         style={[styles.sessionChip, isActive && styles.sessionChipActive]}
                         onPress={() => handleSelectWorkout(s.id)}
                         activeOpacity={0.7}
                       >
+                        <View style={[styles.phaseDot, { backgroundColor: getPhaseColor(s.phase) }]} />
                         <Text style={[styles.sessionChipText, isActive && styles.sessionChipTextActive]}>
-                          W{s.week}S{s.sessionInWeek}
+                          S{s.sessionInWeek}
                         </Text>
+                        <Text style={[styles.sessionTssText, isActive && { color: Colors.accentLight }]}>{s.tss}</Text>
                       </TouchableOpacity>
                     );
-                  })
-                )}
+                  })}
+                </View>
               </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        </FadeInView>
+
+        <FadeInView delay={160}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t('realDaysCalendar')}</Text>
+            {planByDay.map(({ day, sessions }) => (
+              <View key={`d-${day}`} style={styles.dayRow}>
+                <View style={styles.dayLabelWrap}>
+                  <Text style={[styles.dayLabel, sessions.length > 0 && styles.dayLabelActive]}>{day}</Text>
+                </View>
+                <View style={styles.sessionsRow}>
+                  {sessions.length === 0 ? (
+                    <View style={styles.emptyDaySlot}>
+                      <Text style={styles.emptyDayText}>Rest</Text>
+                    </View>
+                  ) : (
+                    sessions.map((s) => {
+                      const isActive = selectedWorkout?.id === s.id;
+                      return (
+                        <TouchableOpacity
+                          key={`dc-${s.id}`}
+                          style={[styles.sessionChip, isActive && styles.sessionChipActive]}
+                          onPress={() => handleSelectWorkout(s.id)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.phaseDot, { backgroundColor: getPhaseColor(s.phase) }]} />
+                          <Text style={[styles.sessionChipText, isActive && styles.sessionChipTextActive]}>
+                            W{s.week}S{s.sessionInWeek}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        </FadeInView>
 
         {selectedWorkout && (
-          <View style={styles.selectedCard}>
-            <Text style={styles.selectedTitle}>{selectedWorkout.name}</Text>
-            <Text style={styles.selectedSummary}>{selectedWorkout.summary}</Text>
-            <View style={styles.selectedMeta}>
-              <View style={[styles.phaseBadge, { backgroundColor: getPhaseColor(selectedWorkout.phase) }]}>
-                <Text style={styles.phaseBadgeText}>{selectedWorkout.phase}</Text>
+          <FadeInView delay={0}>
+            <View style={styles.selectedCard}>
+              <View style={styles.selectedHeader}>
+                <View style={[styles.phaseBadge, { backgroundColor: getPhaseColor(selectedWorkout.phase) }]}>
+                  <Text style={styles.phaseBadgeText}>{selectedWorkout.phase}</Text>
+                </View>
+                <Text style={styles.selectedTss}>TSS {selectedWorkout.tss}</Text>
+                {selectedWorkout.gameRideInfo && (
+                  <Text style={[styles.selectedTss, { color: getReadinessColor(selectedWorkout.gameRideInfo.readinessScore) }]}>
+                    R {selectedWorkout.gameRideInfo.readinessScore}
+                  </Text>
+                )}
               </View>
-              <Text style={styles.selectedTss}>TSS {selectedWorkout.tss}</Text>
-              {selectedWorkout.gameRideInfo && (
-                <Text style={[styles.selectedTss, { color: getReadinessColor(selectedWorkout.gameRideInfo.readinessScore) }]}>
-                  R {selectedWorkout.gameRideInfo.readinessScore}
-                </Text>
-              )}
+              <Text style={styles.selectedTitle}>{selectedWorkout.name}</Text>
+              <Text style={styles.selectedSummary}>{selectedWorkout.summary}</Text>
             </View>
-          </View>
+          </FadeInView>
         )}
       </ScrollView>
     </View>
@@ -225,7 +274,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
-    gap: 12,
+    gap: 14,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.accentGlow,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 20,
@@ -246,52 +304,95 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
+    gap: 4,
+  },
+  statCardAccent: {
+    borderColor: 'rgba(249, 115, 22, 0.2)',
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   statValue: {
     fontSize: 20,
     fontWeight: '800' as const,
     color: Colors.accent,
+    letterSpacing: -0.3,
   },
   statLabel: {
     fontSize: 10,
     fontWeight: '600' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
-    marginTop: 2,
     letterSpacing: 0.5,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 14,
+    padding: 16,
     marginBottom: 14,
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
-    marginBottom: 10,
+    marginBottom: 14,
     textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   weekRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.shimmer,
+  },
+  weekRowLast: {
+    borderBottomWidth: 0,
+    marginBottom: 0,
+    paddingBottom: 0,
+  },
+  weekLabelWrap: {
+    width: 36,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekLabel: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.accentLight,
+  },
+  dayRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
     gap: 10,
   },
-  weekLabel: {
-    width: 32,
+  dayLabelWrap: {
+    width: 36,
+    alignItems: 'center',
+  },
+  dayLabel: {
     fontSize: 12,
-    fontWeight: '700' as const,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+  },
+  dayLabelActive: {
     color: Colors.accentLight,
+    fontWeight: '700' as const,
   },
   sessionsRow: {
     flexDirection: 'row',
@@ -303,16 +404,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    borderRadius: 999,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surfaceLight,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
   },
   sessionChipActive: {
     borderColor: Colors.accent,
-    backgroundColor: 'rgba(249,115,22,0.15)',
+    backgroundColor: Colors.accentGlow,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sessionChipText: {
     fontSize: 12,
@@ -328,50 +434,62 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   phaseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  emptyDaySlot: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   emptyDayText: {
     fontSize: 12,
     color: Colors.textMuted,
+    fontStyle: 'italic' as const,
   },
   selectedCard: {
-    backgroundColor: 'rgba(249,115,22,0.08)',
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(249, 115, 22, 0.2)',
     borderLeftWidth: 3,
     borderLeftColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  selectedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
   },
   selectedTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700' as const,
-    color: Colors.accentLight,
+    color: Colors.text,
     marginBottom: 4,
   },
   selectedSummary: {
     fontSize: 13,
-    color: Colors.text,
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  selectedMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    color: Colors.textSecondary,
+    lineHeight: 19,
   },
   phaseBadge: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   phaseBadgeText: {
     fontSize: 10,
     fontWeight: '700' as const,
     color: '#FFF',
     textTransform: 'uppercase' as const,
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   },
   selectedTss: {
     fontSize: 12,

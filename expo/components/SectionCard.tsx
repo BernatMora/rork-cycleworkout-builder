@@ -12,7 +12,6 @@ import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 
-// Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -27,6 +26,7 @@ interface SectionCardProps {
   children: React.ReactNode;
   headerRight?: React.ReactNode;
   testID?: string;
+  accentBorder?: boolean;
 }
 
 function SectionCardInner({
@@ -39,8 +39,8 @@ function SectionCardInner({
   children,
   headerRight,
   testID,
+  accentBorder = false,
 }: SectionCardProps) {
-  // defaultCollapsed takes precedence if explicitly set
   const initialExpanded = defaultCollapsed !== undefined ? !defaultCollapsed : defaultExpanded;
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
 
@@ -56,7 +56,14 @@ function SectionCardInner({
     : {};
 
   return (
-    <View style={styles.container} testID={testID}>
+    <View
+      style={[
+        styles.container,
+        accentBorder && styles.containerAccent,
+      ]}
+      testID={testID}
+    >
+      {accentBorder && <View style={styles.accentStripe} />}
       <HeaderComponent style={styles.header} {...headerProps}>
         <View style={styles.headerLeft}>
           {icon && <View style={styles.iconContainer}>{icon}</View>}
@@ -96,6 +103,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 16,
   },
+  containerAccent: {
+    borderColor: 'rgba(249, 115, 22, 0.2)',
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  accentStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: Colors.accent,
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -110,10 +135,10 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginRight: 12,
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: Colors.surfaceLight,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: Colors.accentGlow,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -122,14 +147,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '700' as const,
     color: Colors.text,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   subtitle: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
   },
   headerRight: {
     flexDirection: 'row',

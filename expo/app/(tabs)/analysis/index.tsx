@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useMemo, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BarChart3 } from 'lucide-react-native';
+import { BarChart3, TrendingUp, Activity, Layers } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { usePlanContext } from '@/contexts/PlanContext';
 
@@ -15,6 +15,72 @@ function getZoneColor(zone: string): string {
     Z6: Colors.zone6,
   };
   return map[zone] ?? Colors.textMuted;
+}
+
+function AnimatedBarFill({
+  percent,
+  color,
+  delay,
+}: {
+  percent: number;
+  color: string;
+  delay: number;
+}) {
+  const widthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(widthAnim, {
+      toValue: percent,
+      duration: 600,
+      delay,
+      useNativeDriver: false,
+    }).start();
+  }, [widthAnim, percent, delay]);
+
+  const animatedWidth = widthAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%' as unknown as number, '100%' as unknown as number],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.barFill,
+        {
+          width: animatedWidth,
+          backgroundColor: color,
+        },
+      ]}
+    />
+  );
+}
+
+function FadeInView({ delay, children }: { delay: number; children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 400,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 400,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [opacity, translateY, delay]);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
 }
 
 export default function AnalysisScreen() {
@@ -66,7 +132,9 @@ export default function AnalysisScreen() {
   if (plan.length === 0) {
     return (
       <View style={[styles.emptyContainer, { paddingTop: insets.top + 60 }]}>
-        <BarChart3 size={48} color={Colors.textMuted} />
+        <View style={styles.emptyIconWrap}>
+          <BarChart3 size={32} color={Colors.accent} />
+        </View>
         <Text style={styles.emptyTitle}>No Data Yet</Text>
         <Text style={styles.emptySubtitle}>Generate a training plan to see analytics.</Text>
       </View>
@@ -81,83 +149,110 @@ export default function AnalysisScreen() {
       >
         <Text style={styles.screenTitle}>Plan Analytics</Text>
 
-        <View style={styles.statsGrid}>
-          <View style={styles.bigStatCard}>
-            <Text style={styles.bigStatValue}>{analytics.totalTss}</Text>
-            <Text style={styles.bigStatLabel}>Total TSS</Text>
-          </View>
-          <View style={styles.bigStatCard}>
-            <Text style={styles.bigStatValue}>{analytics.totalMinutes}</Text>
-            <Text style={styles.bigStatLabel}>Total Minutes</Text>
-          </View>
-          <View style={styles.bigStatCard}>
-            <Text style={styles.bigStatValue}>{analytics.totalSessions}</Text>
-            <Text style={styles.bigStatLabel}>Sessions</Text>
-          </View>
-          <View style={styles.bigStatCard}>
-            <Text style={styles.bigStatValue}>
-              {analytics.totalSessions > 0 ? Math.round(analytics.totalTss / analytics.totalSessions) : 0}
-            </Text>
-            <Text style={styles.bigStatLabel}>Avg TSS/Session</Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Weekly TSS Distribution</Text>
-          {weeklyTss.map(([week, tss]) => (
-            <View key={`wt-${week}`} style={styles.barRow}>
-              <Text style={styles.barLabel}>W{week}</Text>
-              <View style={styles.barTrack}>
-                <View
-                  style={[
-                    styles.barFill,
-                    { width: `${Math.max(2, (tss / maxWeeklyTss) * 100)}%` },
-                  ]}
-                />
+        <FadeInView delay={0}>
+          <View style={styles.statsGrid}>
+            <View style={[styles.bigStatCard, styles.bigStatCardHighlight]}>
+              <View style={styles.statIconRow}>
+                <TrendingUp size={16} color={Colors.accent} />
               </View>
-              <Text style={styles.barValue}>{tss}</Text>
+              <Text style={styles.bigStatValue}>{analytics.totalTss}</Text>
+              <Text style={styles.bigStatLabel}>Total TSS</Text>
             </View>
-          ))}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Power Zone Distribution</Text>
-          {zoneEntries.map((entry) => (
-            <View key={entry.zone} style={styles.barRow}>
-              <Text style={[styles.barLabel, { color: getZoneColor(entry.zone) }]}>{entry.zone}</Text>
-              <View style={styles.barTrack}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      width: `${Math.max(2, (entry.minutes / maxZoneMinutes) * 100)}%`,
-                      backgroundColor: getZoneColor(entry.zone),
-                    },
-                  ]}
-                />
+            <View style={styles.bigStatCard}>
+              <View style={styles.statIconRow}>
+                <Activity size={16} color={Colors.zone2} />
               </View>
-              <Text style={styles.barValue}>{entry.minutes}m</Text>
-              <Text style={styles.barPercent}>{entry.percent}%</Text>
+              <Text style={[styles.bigStatValue, { color: Colors.zone2 }]}>{analytics.totalMinutes}</Text>
+              <Text style={styles.bigStatLabel}>Total Minutes</Text>
             </View>
-          ))}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Phase Breakdown</Text>
-          {(() => {
-            const phases = new Map<string, number>();
-            for (const w of plan) {
-              phases.set(w.phase, (phases.get(w.phase) ?? 0) + 1);
-            }
-            return Array.from(phases.entries()).map(([phase, count]) => (
-              <View key={phase} style={styles.phaseRow}>
-                <View style={[styles.phaseDot, { backgroundColor: phase === 'Base' ? '#0EA5A4' : phase === 'Build' ? '#F59E0B' : phase === 'Peak' ? '#F97316' : '#60A5FA' }]} />
-                <Text style={styles.phaseLabel}>{phase}</Text>
-                <Text style={styles.phaseCount}>{count} session{count !== 1 ? 's' : ''}</Text>
+            <View style={styles.bigStatCard}>
+              <View style={styles.statIconRow}>
+                <Layers size={16} color={Colors.zone1} />
               </View>
-            ));
-          })()}
-        </View>
+              <Text style={[styles.bigStatValue, { color: Colors.zone1 }]}>{analytics.totalSessions}</Text>
+              <Text style={styles.bigStatLabel}>Sessions</Text>
+            </View>
+            <View style={styles.bigStatCard}>
+              <View style={styles.statIconRow}>
+                <BarChart3 size={16} color={Colors.zone3} />
+              </View>
+              <Text style={[styles.bigStatValue, { color: Colors.zone3 }]}>
+                {analytics.totalSessions > 0 ? Math.round(analytics.totalTss / analytics.totalSessions) : 0}
+              </Text>
+              <Text style={styles.bigStatLabel}>Avg TSS/Session</Text>
+            </View>
+          </View>
+        </FadeInView>
+
+        <FadeInView delay={100}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Weekly TSS Distribution</Text>
+            {weeklyTss.map(([week, tss], idx) => (
+              <View key={`wt-${week}`} style={styles.barRow}>
+                <Text style={styles.barLabel}>W{week}</Text>
+                <View style={styles.barTrack}>
+                  <AnimatedBarFill
+                    percent={Math.max(2, (tss / maxWeeklyTss) * 100)}
+                    color={Colors.accent}
+                    delay={idx * 80}
+                  />
+                </View>
+                <Text style={styles.barValue}>{tss}</Text>
+              </View>
+            ))}
+          </View>
+        </FadeInView>
+
+        <FadeInView delay={200}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Power Zone Distribution</Text>
+            {zoneEntries.map((entry, idx) => (
+              <View key={entry.zone} style={styles.barRow}>
+                <View style={styles.zoneLabelWrap}>
+                  <View style={[styles.zoneDot, { backgroundColor: getZoneColor(entry.zone) }]} />
+                  <Text style={[styles.barLabel, { color: getZoneColor(entry.zone), width: 'auto' as unknown as number }]}>{entry.zone}</Text>
+                </View>
+                <View style={styles.barTrack}>
+                  <AnimatedBarFill
+                    percent={Math.max(2, (entry.minutes / maxZoneMinutes) * 100)}
+                    color={getZoneColor(entry.zone)}
+                    delay={idx * 80 + 100}
+                  />
+                </View>
+                <Text style={styles.barValue}>{entry.minutes}m</Text>
+                <Text style={styles.barPercent}>{entry.percent}%</Text>
+              </View>
+            ))}
+          </View>
+        </FadeInView>
+
+        <FadeInView delay={300}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Phase Breakdown</Text>
+            {(() => {
+              const phases = new Map<string, number>();
+              for (const w of plan) {
+                phases.set(w.phase, (phases.get(w.phase) ?? 0) + 1);
+              }
+              const totalPhases = plan.length;
+              return Array.from(phases.entries()).map(([phase, count]) => {
+                const phaseColor = phase === 'Base' ? '#0EA5A4' : phase === 'Build' ? '#F59E0B' : phase === 'Peak' ? '#F97316' : '#60A5FA';
+                const pct = totalPhases > 0 ? Math.round((count / totalPhases) * 100) : 0;
+                return (
+                  <View key={phase} style={styles.phaseRow}>
+                    <View style={[styles.phaseDot, { backgroundColor: phaseColor }]} />
+                    <Text style={styles.phaseLabel}>{phase}</Text>
+                    <View style={styles.phaseBarTrack}>
+                      <View style={[styles.phaseBarFill, { width: `${pct}%` as unknown as number, backgroundColor: phaseColor }]} />
+                    </View>
+                    <Text style={styles.phaseCount}>{count}</Text>
+                    <Text style={styles.phasePercent}>{pct}%</Text>
+                  </View>
+                );
+              });
+            })()}
+          </View>
+        </FadeInView>
       </ScrollView>
     </View>
   );
@@ -185,7 +280,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
-    gap: 12,
+    gap: 14,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.accentGlow,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 20,
@@ -207,15 +311,27 @@ const styles = StyleSheet.create({
   bigStatCard: {
     width: '47%' as unknown as number,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  bigStatCardHighlight: {
+    borderColor: 'rgba(249, 115, 22, 0.25)',
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statIconRow: {
+    marginBottom: 8,
+  },
   bigStatValue: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800' as const,
     color: Colors.accent,
+    letterSpacing: -0.5,
   },
   bigStatLabel: {
     fontSize: 11,
@@ -227,7 +343,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 16,
@@ -237,15 +353,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
-    marginBottom: 14,
+    marginBottom: 16,
     textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   barRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
     gap: 8,
+  },
+  zoneLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    width: 38,
+  },
+  zoneDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   barLabel: {
     width: 28,
@@ -255,15 +382,14 @@ const styles = StyleSheet.create({
   },
   barTrack: {
     flex: 1,
-    height: 14,
+    height: 18,
     backgroundColor: Colors.surfaceLight,
-    borderRadius: 7,
+    borderRadius: 9,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%' as unknown as number,
-    backgroundColor: Colors.accent,
-    borderRadius: 7,
+    borderRadius: 9,
   },
   barValue: {
     width: 40,
@@ -283,7 +409,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   phaseDot: {
     width: 10,
@@ -291,14 +417,34 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   phaseLabel: {
-    flex: 1,
+    width: 60,
     fontSize: 14,
     fontWeight: '600' as const,
     color: Colors.text,
   },
+  phaseBarTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  phaseBarFill: {
+    height: '100%' as unknown as number,
+    borderRadius: 4,
+  },
   phaseCount: {
     fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    width: 24,
+    textAlign: 'right' as const,
+  },
+  phasePercent: {
+    fontSize: 11,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
+    width: 30,
+    textAlign: 'right' as const,
   },
 });
