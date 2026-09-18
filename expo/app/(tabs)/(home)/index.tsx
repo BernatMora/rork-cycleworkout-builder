@@ -48,6 +48,7 @@ import { rebalancePlanLoad } from '@/utils/plan-load';
 import { pickVariedComboForSession, resolveProgressionObjectiveOnGoalChange } from '@/utils/mode-behavior';
 import { GameRideProfile, generateAdaptiveGameSession, generateWeeklyBossWorkout } from '@/utils/adaptive-game';
 import { AdvancedTrainingMode, BlockFocus, RaceSimulatorProfile, SpinClassStyle, applyAdvancedTrainingMode } from '@/utils/advanced-modes';
+import { detectBrowserLanguage } from '@/constants/workout-options';
 
 const DURATIONS: string[] = ['30 min', '45 min', '60 min', '75 min', '90 min'];
 const GOALS: TrainingGoal[] = [
@@ -2464,7 +2465,7 @@ export default function HomeScreen() {
   const [exportHistoryFilter, setExportHistoryFilter] = useState<ExportHistoryFilter>('All');
   const [simpleMode, setSimpleMode] = useState<boolean>(true);
   const mainViewTab: MainViewTab = 'Builder';
-  const [appLanguage, setAppLanguage] = useState<AppLanguage>('en');
+  const [appLanguage, setAppLanguage] = useState<AppLanguage>(detectBrowserLanguage);
   const [regeneratingWorkoutId, setRegeneratingWorkoutId] = useState<string>('');
   const [sessionFavorites, setSessionFavorites] = useState<SessionFavorite[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSessionMap>({});
@@ -2913,6 +2914,7 @@ export default function HomeScreen() {
         ]);
 
         if (!cancelled && (storedLanguage === 'ca' || storedLanguage === 'es' || storedLanguage === 'en')) {
+          // L'eleccio de l'usuari mana sempre sobre la deteccio del navegador.
           setAppLanguage(storedLanguage);
         }
 

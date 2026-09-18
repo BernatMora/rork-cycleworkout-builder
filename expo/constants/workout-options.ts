@@ -102,6 +102,33 @@ export const FTP_TEST_PROTOCOLS = ['Ramp Test', '20-min Test', '8-min x2 Test'] 
 export const WEEKDAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 // Storage keys
+export type AppLanguageCode = 'ca' | 'es' | 'en';
+
+/** Idioma del navegador, normalitzat als tres que l'app te traduits.
+ *  Sense navegador (app nativa) o idioma desconegut -> catala, que es
+ *  l'idioma de qui l'ha feta. */
+export function detectBrowserLanguage(): AppLanguageCode {
+  try {
+    const runtime = globalThis as { navigator?: { language?: string; languages?: readonly string[] } };
+    const candidates = runtime.navigator?.languages?.length
+      ? runtime.navigator.languages
+      : runtime.navigator?.language
+        ? [runtime.navigator.language]
+        : [];
+
+    for (const raw of candidates) {
+      const low = String(raw).toLowerCase();
+      if (low.startsWith('ca')) return 'ca';
+      if (low.startsWith('es')) return 'es';
+      if (low.startsWith('en')) return 'en';
+    }
+  } catch {
+    // Sense navigator: no passa res, tornem el catala.
+  }
+
+  return 'ca';
+}
+
 export const STORAGE_KEYS = {
   WORKOUT_DISPLAY_NAME: 'ictrainer_workout_display_name',
   EXPORT_NAME: 'ictrainer_export_name',

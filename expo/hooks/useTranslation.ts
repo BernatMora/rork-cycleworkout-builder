@@ -1,10 +1,12 @@
 import { useCallback, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TRANSLATIONS, AppLanguage, TranslationKey } from '@/constants/translations';
-import { STORAGE_KEYS } from '@/constants/workout-options';
+import { STORAGE_KEYS, detectBrowserLanguage } from '@/constants/workout-options';
 
 export function useTranslation() {
-  const [language, setLanguageState] = useState<AppLanguage>('en');
+  // Arrenca en l'idioma del navegador (catala si no se sap quin es), no sempre
+  // en angles: abans la primera pintada era angles i despres saltava.
+  const [language, setLanguageState] = useState<AppLanguage>(detectBrowserLanguage);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEYS.APP_LANGUAGE).then((saved) => {
@@ -21,7 +23,7 @@ export function useTranslation() {
 
   const t = useCallback(
     (key: TranslationKey, params?: Record<string, string | number>): string => {
-      let text = TRANSLATIONS[language][key] || TRANSLATIONS.en[key] || key;
+      let text: string = TRANSLATIONS[language][key] || TRANSLATIONS.en[key] || key;
       if (params) {
         Object.entries(params).forEach(([k, v]) => {
           text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));

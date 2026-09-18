@@ -1,4 +1,5 @@
 import { generateObject } from '@rork-ai/toolkit-sdk';
+import { buildVariedMain, describeGeneratedWorkout } from './workout-generator-local';
 import { z } from 'zod';
 import { WorkoutInterval, WorkoutDuration, TrainingGoal, FitnessLevel, WorkoutStyle } from '@/types/workout';
 
@@ -512,26 +513,52 @@ Return the intervals array and a summary string.`;
       summary: result.summary || `Structured ${params.goal} workout with warmup and cooldown.`,
     };
   } catch (error) {
-    console.error('[workout-generator] AI generation failed, using fallback workout:', error);
-    let fallbackIntervals = applyWarmupCooldown(
-      fitToDuration(buildFallbackWorkout(targetSeconds, params.goal), targetSeconds),
-      targetSeconds,
-      {
-        warmupMinutes: safeWarmupMinutes,
-        cooldownMinutes: safeCooldownMinutes,
-        warmupPowerPercent: params.warmupPowerPercent,
-        cooldownPowerPercent: params.cooldownPowerPercent,
-      }
-    );
-    fallbackIntervals = applyIntensityAdjustment(fallbackIntervals, params.intensityAdjustmentPercent ?? 0);
-    fallbackIntervals = applyGoalQualityProfile(fallbackIntervals, targetSeconds, params.goal, params.style);
-    if (params.ergSmoothMode) {
-      fallbackIntervals = applyErgSmoothing(fallbackIntervals);
-    }
-
-    return {
-      intervals: fallbackIntervals,
-      summary: `Structured ${params.goal} fallback workout, ready to export as ZWO.`,
-    };
+    // Sense IA (clau no disponible, xarxa, limit): generem local. Fem servir el
+    // MATEIX cami de qualitat, nomes canvia d'on surt la part principal.
+    console.warn('[workout-generator] AI generation unavailable, generating locally:', error);
+    return generateWorkoutLocally(params);
   }
+}
+
+/** Genera un entrenament sense cap crida externa.
+ *
+ *  Es el cami que fa servir tothom qui no tingui acces al model, i tambe el
+ *  fallback si la crida falla. Construeix la part principal amb estructura
+ *  variada i deixa la resta de la cadena (limits de zona + durada exacta)
+ *  tal com estava.
+ */
+export function generateWorkoutLocally(params: GenerateParams): {
+  intervals: WorkoutInterval[];
+  summary: string;
+} {
+  const targetSeconds = params.duration * 60;
+  const safeWarmupMinutes = Math.max(1, Math.min(5, params.warmupMinutes));
+  const safeCooldownMinutes = Math.max(1, Math.min(20, params.cooldownMinutes));
+
+  // La part principal es el que queda despres d'escalfament i refredament.
+  const mainSeconds = Math.max(
+    60,
+    targetSeconds - (safeWarmupMinutes + safeCooldownMinutes) * 60
+  );
+
+  let intervals = applyWarmupCooldown(
+    fitToDuration(buildVariedMain(mainSeconds, params.goal, params.style, params.level), mainSeconds),
+    targetSeconds,
+    {
+      warmupMinutes: safeWarmupMinutes,
+      cooldownMinutes: safeCooldownMinutes,
+      warmupPowerPercent: params.warmupPowerPercent,
+      cooldownPowerPercent: params.cooldownPowerPercent,
+    }
+  );
+  intervals = applyIntensityAdjustment(intervals, params.intensityAdjustmentPercent ?? 0);
+  intervals = applyGoalQualityProfile(intervals, targetSeconds, params.goal, params.style);
+  if (params.ergSmoothMode) {
+    intervals = applyErgSmoothing(intervals);
+  }
+
+  return {
+    intervals,
+    summary: describeGeneratedWorkout(params.goal, targetSeconds),
+  };
 }
