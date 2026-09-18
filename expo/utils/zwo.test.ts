@@ -117,9 +117,9 @@ describe('zwo utils', () => {
 
     const xml = generateIctxXml(intervals, 'Posture Cue Test');
 
-    expect(xml).toContain('<name>Main part 1 · Sit</name>');
-    expect(xml).toContain('<name>Main part 2 · Stand</name>');
-    expect(xml).toContain('<name>Main part 3 · Sit</name>');
+    expect(xml).toContain('<name>Main part 1 - Sit</name>');
+    expect(xml).toContain('<name>Main part 2 - Stand</name>');
+    expect(xml).toContain('<name>Main part 3 - Sit</name>');
   });
 
   it('does not encode posture cues when ICTX posture option is disabled', () => {
@@ -207,6 +207,80 @@ describe('zwo utils', () => {
     expect(parsed[1]).toEqual({ type: 'interval', duration_seconds: 180, power_percent_ftp: 90 });
     expect(parsed[2]).toEqual({ type: 'recovery', duration_seconds: 180, power_percent_ftp: 60 });
     expect(parsed[3]).toEqual({ type: 'cooldown', duration_seconds: 300, power_percent_ftp: 50 });
+  });
+
+  it('escriu la postura a <position> i la indicacio a <comment>, no al nom', () => {
+    const intervals: WorkoutInterval[] = [
+      { type: 'interval', duration_seconds: 240, power_percent_ftp: 92, cadence_rpm_target: 65, posture_cue: 'standing' },
+      { type: 'recovery', duration_seconds: 120, power_percent_ftp: 55, cadence_rpm_target: 85, posture_cue: 'seated' },
+    ];
+
+    const xml = generateIctxXml(intervals, 'Postura Test');
+
+    expect(xml).toContain('<position>standing</position>');
+    expect(xml).toContain('<position>sitting</position>');
+    expect(xml).toContain('<comment>');
+  });
+
+  it('posa el BOM i la declaracio sense encoding, com els .ictx propis d\'icTrainer', () => {
+    const xml = generateIctxXml([{ type: 'interval', duration_seconds: 300, power_percent_ftp: 90 }], 'BOM Test');
+
+    expect(xml.charCodeAt(0)).toBe(0xfeff);
+    expect(xml).toContain('<?xml version="1.0" ?>');
+    expect(xml).not.toContain('encoding=');
+  });
+
+  it('posa una indicacio a cada tram encara que l\'entrenament no en porti', () => {
+    const intervals: WorkoutInterval[] = [
+      { type: 'warmup', duration_seconds: 300, power_percent_ftp: 50 },
+      { type: 'interval', duration_seconds: 240, power_percent_ftp: 118, cadence_rpm_target: 62 },
+      { type: 'cooldown', duration_seconds: 300, power_percent_ftp: 45 },
+    ];
+
+    const xml = generateIctxXml(intervals, 'Cues Test');
+    const cues = xml.match(/<comment>[^<]*<\/comment>/g) ?? [];
+
+    // 1 de la capcalera + 3 dels trams
+    expect(cues).toHaveLength(4);
+    expect(xml).toContain('118% FTP');
+    expect(xml).toContain('62 rpm');
+  });
+
+  it('fa servir la indicacio escrita al tram quan n\'hi ha', () => {
+    const xml = generateIctxXml(
+      [{ type: 'interval', duration_seconds: 240, power_percent_ftp: 92, cue: 'Aixeca\'t i ataca' }],
+      'Cua Propia Test'
+    );
+
+    expect(xml).toContain('<comment>Aixeca&apos;t i ataca</comment>');
+  });
+
+  it('usa XXL als trams forts, com el HIIT_01.ictx d\'icTrainer', () => {
+    const xml = generateIctxXml([{ type: 'interval', duration_seconds: 30, power_percent_ftp: 135 }], 'XXL Test');
+
+    expect(xml).toContain('<level>XXL</level>');
+  });
+
+  it('respecta el nivell del treball a <exerciseLevel>', () => {
+    const intervals: WorkoutInterval[] = [{ type: 'interval', duration_seconds: 300, power_percent_ftp: 90 }];
+
+    expect(generateIctxXml(intervals, 'Nivell A', { level: 'Advanced' })).toContain('<exerciseLevel>ADVANCED</exerciseLevel>');
+    expect(generateIctxXml(intervals, 'Nivell B', { level: 'Beginner' })).toContain('<exerciseLevel>BEGINNER</exerciseLevel>');
+    expect(generateIctxXml(intervals, 'Nivell C')).toContain('<exerciseLevel>INTERMEDIATE</exerciseLevel>');
+  });
+
+  it('posa la descripcio llarga i les dades a <description>, amb estil i sense escapar el HTML', () => {
+    const xml = generateIctxXml(
+      [{ type: 'interval', duration_seconds: 600, power_percent_ftp: 90 }],
+      'Descripcio Test',
+      { goal: 'Threshold', description: 'Un text amb <b> etiquetes & simbols', ftpWatts: 250 }
+    );
+
+    expect(xml).toContain('<description>');
+    expect(xml).toContain('<span style="color:#E8ECF1">');
+    expect(xml).toContain('color:#FDBA74');
+    expect(xml).toContain('<br>');
+    expect(xml).toContain('&lt;b&gt; etiquetes &amp; simbols');
   });
 
   it('computes a non-zero TSS for valid intervals and ftp', () => {

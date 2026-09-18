@@ -6,6 +6,9 @@ export interface WorkoutInterval {
   power_percent_ftp: number;
   cadence_rpm_target?: number;
   posture_cue?: 'seated' | 'standing';
+  /** Indicacio que es mostra a la bici a l'inici del tram: arriba al <comment>
+   *  de l'.ictx. Si no n'hi ha cap, se'n genera una per defecte. */
+  cue?: string;
 }
 
 export type WorkoutDuration = 30 | 45 | 60 | 75 | 90;

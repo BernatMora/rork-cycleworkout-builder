@@ -4061,6 +4061,9 @@ export default function HomeScreen() {
         previewImageBase64: buildIctxPreviewImage(workout.intervals),
         goal,
         includePostureCues: includeSpinCuesInIctx,
+        level,
+        description: workout.summary,
+        ftpWatts: ftpNum > 0 ? ftpNum : 250,
       });
     }
 
@@ -4073,7 +4076,7 @@ export default function HomeScreen() {
     }
 
     return generateErgText(workout.intervals, ftpNum > 0 ? ftpNum : 200, workoutName);
-  }, [goal, includeSpinCuesInIctx, ftpNum]);
+  }, [goal, includeSpinCuesInIctx, ftpNum, level]);
 
   const exportPlanFiles = useCallback(async (options?: { forcedFormat?: ExportFileFormat; forcedLabel?: string }) => {
     if (plan.length === 0) {

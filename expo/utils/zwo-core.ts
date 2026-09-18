@@ -43,15 +43,20 @@ function formatIctxDate(date: Date = new Date()): string {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-function getIctxLevelFromRatio(ratio: number): 'XS' | 'S' | 'M' | 'L' | 'XL' {
+type IctxLevel = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+
+function getIctxLevelFromRatio(ratio: number): IctxLevel {
   if (ratio <= 50) return 'XS';
   if (ratio <= 70) return 'S';
   if (ratio <= 85) return 'M';
   if (ratio <= 100) return 'L';
-  return 'XL';
+  if (ratio <= 125) return 'XL';
+  // El propi HIIT_01.ictx d'icTrainer fa servir XXL a 135%: sense aquesta banda
+  // els trams forts es pinten com si fossin mes fluixos del que son.
+  return 'XXL';
 }
 
-function getIctxRpm(level: 'XS' | 'S' | 'M' | 'L' | 'XL'): number {
+function getIctxRpm(level: IctxLevel): number {
   switch (level) {
     case 'XS':
     case 'S':
@@ -61,9 +66,41 @@ function getIctxRpm(level: 'XS' | 'S' | 'M' | 'L' | 'XL'): number {
     case 'L':
       return 75;
     case 'XL':
+    case 'XXL':
     default:
       return 70;
   }
+}
+
+/** Postura que llegeix icTrainer: va a <position>, NO al nom de la sequencia
+ *  (el nom es decoratiu i el programa no el fa servir per a res). */
+function ictxPostureFor(leg: WorkoutInterval): 'sitting' | 'standing' {
+  return leg.posture_cue === 'standing' ? 'standing' : 'sitting';
+}
+
+/** Indicacio per a un tram que no en porta cap d'escrita. Diu QUE cal fer i amb
+ *  quina xifra, que es el que es llegeix a la bici. */
+function ictxDefaultCue(leg: WorkoutInterval): string {
+  const pct = Math.round(leg.power_percent_ftp);
+  const rpm = leg.cadence_rpm_target ? Math.round(leg.cadence_rpm_target) : null;
+  const seg = Math.round(leg.duration_seconds);
+
+  if (leg.type === 'warmup') return 'Escalfament: deixa pujar el pols i prepara les cames';
+  if (leg.type === 'cooldown') return 'Refredament: baixa poc a poc, gira fluix i respira';
+  if (leg.type === 'recovery') {
+    return 'Recupera pedalant fluix, respira pel nas' + (rpm ? ` (${rpm} rpm)` : '');
+  }
+
+  const cap = pct >= 140 ? 'Espurna' : pct >= 115 ? 'Bloc dur' : pct >= 95 ? 'Ritme' : 'Suau';
+  let text = `${cap}: ${pct}% FTP`;
+  if (rpm) text += ` a ${rpm} rpm`;
+  text += ` durant ${seg >= 60 ? `${Math.round((seg / 60) * 10) / 10} min` : `${seg} s`}`;
+  return text;
+}
+
+function ictxCueFor(leg: WorkoutInterval): string {
+  if (typeof leg.cue === 'string' && leg.cue.trim()) return leg.cue.trim();
+  return ictxDefaultCue(leg);
 }
 
 function getIctxBpm(ratio: number): number {
@@ -71,14 +108,16 @@ function getIctxBpm(ratio: number): number {
 }
 
 function buildIctxSequence(name: string, legs: WorkoutInterval[]): string {
-  const legLines = legs.map((leg, index) => {
+  const normalizedRpms: number[] = [];
+
+  const legLines = legs.map((leg) => {
     const ratio = Math.max(40, Math.min(140, Math.round(leg.power_percent_ftp)));
     const level = getIctxLevelFromRatio(ratio);
     const rpm = leg.cadence_rpm_target
       ? Math.max(50, Math.min(130, Math.round(leg.cadence_rpm_target)))
       : getIctxRpm(level);
+    normalizedRpms.push(rpm);
     const bpm = getIctxBpm(ratio);
-    const bpmDefault = index === 0 ? 'true' : 'false';
 
     return [
       '      <leg>',
@@ -86,16 +125,27 @@ function buildIctxSequence(name: string, legs: WorkoutInterval[]): string {
       `        <levelRatio>${ratio}</levelRatio>`,
       `        <duration>${formatIctxDuration(leg.duration_seconds)}</duration>`,
       `        <rpm>${rpm}</rpm>`,
+      `        <cadence>${rpm}</cadence>`,
       `        <bpm>${bpm}</bpm>`,
-      `        <bpmDefault>${bpmDefault}</bpmDefault>`,
+      // Els .ictx propis d'icTrainer porten bpmDefault=false a tots els trams.
+      '        <bpmDefault>false</bpmDefault>',
+      // <position> es com icTrainer sap si vas dret o assegut; <comment> es la
+      // indicacio curta que surt a la pantalla en comencar el tram.
+      `        <position>${ictxPostureFor(leg)}</position>`,
+      `        <comment>${escapeXml(ictxCueFor(leg))}</comment>`,
       '      </leg>',
     ].join('\n');
   }).join('\n');
+
+  const sequenceRpm = normalizedRpms.length > 0
+    ? Math.round(normalizedRpms.reduce((sum, value) => sum + value, 0) / normalizedRpms.length)
+    : 80;
 
   return [
     '    <sequence>',
     `      <name>${name}</name>`,
     '      <loops>1</loops>',
+    `      <rpm>${sequenceRpm}</rpm>`,
     legLines,
     '    </sequence>',
   ].join('\n');
@@ -144,13 +194,23 @@ function buildIctxMainSequencesWithPosture(mainLegs: WorkoutInterval[]): string[
     blocks.push(current);
   }
 
-  return blocks.map((block, index) => buildIctxSequence(`Main part ${index + 1} · ${getIctxPostureLabel(block[0])}`, block));
+  return blocks.map((block, index) => buildIctxSequence(`Main part ${index + 1} - ${getIctxPostureLabel(block[0])}`, block));
 }
 
 export function generateIctxXml(
   intervals: WorkoutInterval[],
   workoutName: string = 'Generated Workout',
-  options?: { previewImageBase64?: string; goal?: TrainingGoal; includePostureCues?: boolean }
+  options?: {
+    previewImageBase64?: string;
+    goal?: TrainingGoal;
+    includePostureCues?: boolean;
+    /** Nivell del treball -> <exerciseLevel> (BEGINNER|INTERMEDIATE|ADVANCED) */
+    level?: string;
+    /** Text llarg de l'entrenament -> <description>, que accepta HTML. */
+    description?: string;
+    /** FTP en watts, nomes per a la linia de dades de la descripcio. */
+    ftpWatts?: number;
+  }
 ): string {
   const safeIntervals = intervals.length > 0
     ? intervals
@@ -196,16 +256,39 @@ export function generateIctxXml(
               ? 'RECOVERY'
               : 'ENDURANCE';
 
-  return `<?xml version="1.0" ?>
+  const totalSeconds = safeIntervals.reduce((sum, i) => sum + Math.max(1, Math.round(i.duration_seconds)), 0);
+  const levelLabel = String(options?.level ?? 'Intermediate').toUpperCase();
+  const exerciseLevel = levelLabel === 'BEGINNER' || levelLabel === 'ADVANCED'
+    ? levelLabel
+    : 'INTERMEDIATE';
+  const ftpWatts = Math.max(100, Math.round(options?.ftpWatts || 250));
+  const tssEstimat = calculateTSS(safeIntervals, ftpWatts);
+  const descripcio = String(options?.description ?? '').trim();
+
+  // El text llarg va a <description> (icTrainer l'accepta amb HTML i el pinta
+  // d'un gris molt clar per defecte), i <comment> es queda amb UNA linia curta,
+  // com als fitxers propis del programa.
+  const descripcioHtml = descripcio
+    ? `<b>${escapeXml(workoutName)}</b> · ${escapeXml(String(goal ?? ''))} · ${Math.round(totalSeconds / 60)} min`
+      + `<br><span style="color:#E8ECF1">${escapeXml(descripcio)}</span>`
+      + `<br><span style="color:#FDBA74">FTP ${ftpWatts} W · TSS ~${tssEstimat} · ${safeIntervals.length} segments</span>`
+    : '';
+  const commentCurt = `${workoutName}${goal ? ` - ${goal}` : ''} (${Math.round(totalSeconds / 60)} min)`;
+
+  // El BOM i la declaracio sense `encoding` son exactament com als .ictx propis
+  // d'icTrainer: el seu importador rep el mateix que ja sap llegir.
+  return `\uFEFF<?xml version="1.0" ?>
 <icTrainer>
   <icTrainerExercise>
     <name>${escapeXml(workoutName)}</name>
     <code></code>
     <version>9</version>
     <sportType>Road</sportType>
-    <exerciseLevel>BEGINNER</exerciseLevel>
+    <exerciseLevel>${exerciseLevel}</exerciseLevel>
     <exerciseType>${exerciseType}</exerciseType>
     <workoutStruct>${workoutStruct}</workoutStruct>
+    <comment>${escapeXml(commentCurt)}</comment>
+    <description>${descripcioHtml}</description>
     <playlist></playlist>
     <lastUpdate>${formatIctxDate()}</lastUpdate>
     <startImage></startImage>
