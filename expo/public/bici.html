@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CycleConnect Web · prova Bluetooth</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #171c24; --panel2: #1f2630; --line: #2b3441;
+    --text: #e8edf3; --muted: #8b98a8; --accent: #ff7a1a; --ok: #3ecf8e;
+    --warn: #f2c744; --bad: #ff5d5d; --hr: #ff4d6d; --cad: #4da3ff; --spd: #b58cff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  h1 span { color: var(--accent); }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .banner { border: 1px solid var(--bad); background: #2a1616; padding: 12px 14px; border-radius: 10px; margin-bottom: 16px; display: none; }
+  .banner.show { display: block; }
+  .grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+  section { min-width: 0; }
+  .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+  @media (max-width: 820px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 8px 12px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a0d00; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .slot { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .slot:first-of-type { border-top: 0; padding-top: 0; }
+  .slot .info { flex: 1; min-width: 0; }
+  .slot .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot .state { font-size: 12px; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.busy, .dot.wait { background: var(--warn); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 560px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .metric { background: var(--panel2); border-radius: 12px; padding: 12px; }
+  .metric .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .metric .val { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .metric .unit { font-size: 12px; color: var(--muted); }
+  .m-pow .val { color: var(--accent); } .m-hr .val { color: var(--hr); }
+  .m-cad .val { color: var(--cad); } .m-spd .val { color: var(--spd); }
+  canvas { width: 100%; height: 160px; display: block; margin-top: 12px; background: var(--panel2); border-radius: 12px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .stats b { color: var(--text); font-weight: 600; }
+  .ctl { margin-top: 14px; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  .ctl label b { color: var(--text); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 6px 0 8px; }
+  .modes { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .modes button { border: 0; border-radius: 0; background: transparent; }
+  .modes button.sel { background: var(--accent); color: #1a0d00; font-weight: 600; }
+  #log { height: 220px; overflow: auto; background: #0a0d11; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: #b9c4d0; }
+  #wChart { height: 240px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+  .legend i.dash { border-top-style: dashed; }
+  .legend i.blk { height: 10px; border: 0; background: #f2c74466; border-radius: 2px; }
+  select, input[type=number] { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
+  select { flex: 1 1 180px; min-width: 0; max-width: 100%; }
+  input[type=number] { width: 76px; }
+  .ftp { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .wnow { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+  @media (max-width: 560px) { .wnow { grid-template-columns: 1fr 1fr; } }
+  .wnow > div { background: var(--panel2); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .wnow .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .wnow .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wnow .u { font-size: 13px; color: var(--cad); min-height: 18px; }
+  .cue { min-height: 22px; margin: 10px 0; color: var(--text); }
+  .cue small { color: var(--muted); }
+  .int { margin-left: auto; color: var(--muted); font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .int b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>CycleConnect <span>Web</span></h1>
+    <span class="sub">Prova de connexió Bluetooth · Bkool, FTMS, sensors de cor, cadència i potència</span>
+  </header>
+
+  <div id="nobt" class="banner">
+    <b>Aquest navegador no té Web Bluetooth.</b> Obre aquesta pàgina amb <b>Chrome</b> o <b>Edge</b> a Windows o Mac
+    (Safari i Firefox no ho suporten). Si l'has obert com a fitxer i tampoc funciona, serveix-la des de
+    <code>http://localhost</code>. Mentrestant pots provar el simulador.
+  </div>
+
+  <div class="grid cols">
+    <div class="grid" style="align-content:start">
+      <section>
+        <h2>Dispositius</h2>
+        <div class="slot" data-slot="bike">
+          <span class="dot"></span>
+          <div class="info"><div class="name">Bicicleta / rodet</div><div class="state">No connectada</div></div>
+          <button class="primary" data-act="connect">Connecta</button>
+          <button data-act="all" title="Mostra tots els aparells Bluetooth propers, sense filtrar">Tots</button>
+        </div>
+        <div class="slot" data-slot="hr">
+          <span class="dot"></span>
+          <div class="info"><div class="name">Sensor de cor</div><div class="state">No connectat</div></div>
+          <button data-act="connect">Connecta</button>
+          <button data-act="all" title="Mostra tots els aparells Bluetooth propers, sense filtrar">Tots</button>
+        </div>
+        <div class="slot" data-slot="extra">
+          <span class="dot"></span>
+          <div class="info"><div class="name">Cadència / potenciòmetre</div><div class="state">No connectat</div></div>
+          <button data-act="connect">Connecta</button>
+          <button data-act="all" title="Mostra tots els aparells Bluetooth propers, sense filtrar">Tots</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="simBtn">Simulador</button>
+        </div>
+        <p class="hint" id="autoHint" hidden>Perquè la bici i els sensors es connectin sols en obrir la pàgina, activa una sola vegada <code>chrome://flags/#enable-web-bluetooth-new-permissions-backend</code> (a Edge, <code>edge://flags/…</code>) i reinicia el navegador.</p>
+        <p class="hint">Si un aparell no surt a la llista, prem <b>Tots</b> i busca'l pel nom. Cada aparell només admet una connexió alhora: tanca l'app de Bkool i desconnecta els sensors del rellotge i del mòbil.</p>
+      </section>
+
+      <section>
+        <h2>Control de resistència</h2>
+        <div class="modes" id="modes">
+          <button data-mode="erg" class="sel">Potència (ERG)</button>
+          <button data-mode="slope">Pendent</button>
+        </div>
+        <div class="ctl" id="ergCtl">
+          <label>Potència objectiu <b><span id="tpVal">120</span> W</b></label>
+          <input id="tp" type="range" min="50" max="500" step="5" value="120">
+          <div class="row">
+            <button data-tp="-10">−10</button><button data-tp="10">+10</button>
+            <button data-tpset="100">100</button><button data-tpset="150">150</button>
+            <button data-tpset="200">200</button><button data-tpset="250">250</button>
+          </div>
+        </div>
+        <div class="ctl" id="slopeCtl" style="display:none">
+          <label>Pendent <b><span id="slVal">0.0</span> %</b></label>
+          <input id="sl" type="range" min="-5" max="15" step="0.5" value="0">
+          <div class="row">
+            <button data-sl="-1">−1</button><button data-sl="1">+1</button>
+            <button data-slset="0">0 %</button><button data-slset="4">4 %</button><button data-slset="8">8 %</button>
+          </div>
+        </div>
+        <p class="hint" id="ctlState">Connecta la bici per enviar ordres.</p>
+      </section>
+    </div>
+
+    <div class="grid" style="align-content:start">
+      <section>
+        <h2>En directe</h2>
+        <div class="metrics">
+          <div class="metric m-pow"><div class="lbl">Potència</div><div class="val" id="vPow">–</div><div class="unit">W</div></div>
+          <div class="metric m-cad"><div class="lbl">Cadència</div><div class="val" id="vCad">–</div><div class="unit">rpm</div></div>
+          <div class="metric m-hr"><div class="lbl">Pols</div><div class="val" id="vHr">–</div><div class="unit">ppm</div></div>
+          <div class="metric m-spd"><div class="lbl">Velocitat</div><div class="val" id="vSpd">–</div><div class="unit" id="uSpd">km/h</div></div>
+        </div>
+        <canvas id="chart" width="1200" height="320"></canvas>
+        <div class="row" style="margin-top:12px">
+          <button class="primary" id="startBtn">Inicia sessió</button>
+          <button id="resetBtn">Reinicia</button>
+          <button id="csvBtn">Desa CSV</button>
+        </div>
+        <div class="stats">
+          <span>Temps <b id="sTime">00:00</b></span>
+          <span>Mitjana <b id="sAvg">–</b> W</span>
+          <span>Màx <b id="sMax">–</b> W</span>
+          <span>Distància <b id="sDist">0.00</b> km</span>
+          <span>Energia <b id="sKj">0</b> kJ</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>Entrenament</h2>
+        <div class="row">
+          <select id="wSel" aria-label="Entrenament"></select>
+          <button id="wImport">Importa fitxer…</button>
+          <input type="file" id="wFile" accept=".zwo,.ictx,.mrc,.erg,.xml" hidden>
+          <label class="ftp">FTP <input id="ftp" type="number" min="80" max="500" step="5" value="200"> W</label>
+        </div>
+        <canvas id="wChart" width="1200" height="480"></canvas>
+        <div class="legend"><span><i class="blk"></i>Potència objectiu</span><span><i style="border-color:#fff"></i>La teva potència</span><span><i class="dash" style="border-color:#4da3ff"></i>Cadència objectiu</span><span><i style="border-color:#4da3ff"></i>La teva cadència</span></div>
+        <div class="wnow">
+          <div><div class="lbl">Tram</div><div class="v" id="wStep">–</div></div>
+          <div><div class="lbl">Objectiu</div><div class="v" id="wTarget">–</div><div class="u" id="wCad"></div></div>
+          <div><div class="lbl">Queda al tram</div><div class="v" id="wLeft">–</div></div>
+          <div><div class="lbl">Queda total</div><div class="v" id="wTotal">–</div></div>
+        </div>
+        <div class="cue" id="wCue"></div>
+        <div class="row">
+          <button class="primary" id="wPlay">Comença</button>
+          <button id="wSkip">Salta el tram</button>
+          <button id="wStop">Atura</button>
+          <span class="int">Intensitat <button id="wLess">−5</button><b><span id="wInt">100</span> %</b><button id="wMore">+5</button></span>
+        </div>
+        <p class="hint">Els entrenaments enviats des de la web d'intervals i els fitxers importats (.zwo, .ictx, .mrc, .erg) es queden desats en aquesta llista. L'entrenament posa la bici en mode ERG i canvia la potència a cada tram.</p>
+      </section>
+
+      <section>
+        <h2>Registre de diagnòstic</h2>
+        <div id="log"></div>
+        <div class="row" style="margin-top:10px">
+          <button id="copyLog">Copia el registre</button>
+          <button id="clearLog">Neteja</button>
+        </div>
+        <p class="hint">Si alguna cosa no funciona, copia aquest registre i enganxa'l a la conversa.</p>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+'use strict';
+/* ============================================================
+   CycleConnect Web — capa Bluetooth portada de BluetoothBikeService.swift
+   Protocols: FTMS (1826), Cycling Power (1818), CSC (1816), Heart Rate (180D)
+   i servei propi de Bkool (F03EEE01…), que transporta pàgines ANT+ FE-C.
+   ============================================================ */
+const UUID = {
+  ftms: 0x1826, hr: 0x180d, csc: 0x1816, cp: 0x1818, devInfo: 0x180a,
+  bkool: 'f03eee01-4910-473c-be46-960948c2f59c',
+  indoorBikeData: 0x2ad2, ftmsControl: 0x2ad9, ftmsStatus: 0x2ada,
+  hrMeasurement: 0x2a37, cscMeasurement: 0x2a5b, cpMeasurement: 0x2a63, modelNumber: 0x2a24,
+  bkoolWrite: 'f03ee002-4910-473c-be46-960948c2f59c',
+  bkoolNotify1: 'f03ee004-4910-473c-be46-960948c2f59c',
+  bkoolNotify2: 'f03ee006-4910-473c-be46-960948c2f59c',
+};
+const ALL_SERVICES = [UUID.ftms, UUID.hr, UUID.csc, UUID.cp, UUID.devInfo, UUID.bkool];
+const WHEEL_M = 2.105;
+const $ = (id) => document.getElementById(id);
+const hex = (dv) => Array.from(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength), b => b.toString(16).padStart(2, '0')).join(' ');
+
+/* ---------- registre ---------- */
+const logEl = $('log');
+function log(msg) {
+  const t = new Date().toTimeString().slice(0, 8);
+  logEl.textContent += `[${t}] ${msg}\n`;
+  if (logEl.textContent.length > 60000) logEl.textContent = logEl.textContent.slice(-40000);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+const seenRaw = new Map();
+function logRaw(tag, dv) {           // limita el soroll: màxim 1 línia/2 s per característica
+  const now = performance.now();
+  if (now - (seenRaw.get(tag) || -1e9) < 2000) return;
+  seenRaw.set(tag, now);
+  log(`${tag}: ${hex(dv)}`);
+}
+
+/* ---------- estat en directe ---------- */
+const live = { power: null, cadence: null, hr: null, speed: null, tPower: 0, tCad: 0, tHr: 0, tSpd: 0 };
+const now = () => performance.now();
+function setPower(w)   { live.power = Math.max(0, Math.round(w)); live.tPower = now(); }
+function setCadence(r) { live.cadence = Math.round(r); live.tCad = now(); }
+function setHr(b)      { live.hr = b; live.tHr = now(); }
+function setSpeed(k)   { live.speed = k; live.tSpd = now(); }
+
+/* ---------- parsers (retornen objectes; es poden provar sols) ---------- */
+function parseIndoorBikeData(dv) {
+  const out = {};
+  if (dv.byteLength < 2) return out;
+  const flags = dv.getUint16(0, true);
+  let o = 2;
+  const has = (n) => o + n <= dv.byteLength;
+  if ((flags & 0x0001) === 0) { if (has(2)) out.speed = dv.getUint16(o, true) * 0.01; o += 2; }
+  if (flags & 0x0002) o += 2;
+  if (flags & 0x0004) { if (has(2)) out.cadence = dv.getUint16(o, true) * 0.5; o += 2; }
+  if (flags & 0x0008) o += 2;
+  if (flags & 0x0010) o += 3;
+  if (flags & 0x0020) o += 2;
+  if (flags & 0x0040) { if (has(2)) out.power = dv.getInt16(o, true); o += 2; }
+  if (flags & 0x0080) o += 2;
+  if (flags & 0x0100) o += 5;
+  if (flags & 0x0200) { if (has(1)) out.hr = dv.getUint8(o); o += 1; }
+  return out;
+}
+function parseHeartRate(dv) {
+  if (dv.byteLength < 2) return {};
+  const f = dv.getUint8(0);
+  if ((f & 1) === 0) return { hr: dv.getUint8(1) };
+  return dv.byteLength >= 3 ? { hr: dv.getUint16(1, true) } : {};
+}
+/* Calcula rpm / km/h a partir de comptadors acumulats (amb desbordament). */
+function makeRevTracker(timeUnitsPerSec, revBits) {
+  let prev = null;
+  const revMod = 2 ** revBits;
+  return (revs, time) => {
+    let rate = null;
+    if (prev) {
+      const dRev = (revs - prev.revs + revMod) % revMod;
+      const dT = (time - prev.time + 65536) % 65536;
+      if (dT > 0 && dRev > 0 && dRev < 1000) rate = dRev / (dT / timeUnitsPerSec);   // voltes per segon
+    }
+    prev = { revs, time };
+    return rate;
+  };
+}
+function makeSensorState() {
+  return { cscWheel: makeRevTracker(1024, 32), cscCrank: makeRevTracker(1024, 16),
+           cpWheel: makeRevTracker(2048, 32), cpCrank: makeRevTracker(1024, 16) };
+}
+function parseCSC(dv, st) {
+  const out = {};
+  if (dv.byteLength < 1) return out;
+  const f = dv.getUint8(0); let o = 1;
+  if ((f & 1) && o + 6 <= dv.byteLength) {
+    const r = st.cscWheel(dv.getUint32(o, true), dv.getUint16(o + 4, true)); o += 6;
+    if (r !== null) out.speed = r * WHEEL_M * 3.6;
+  }
+  if ((f & 2) && o + 4 <= dv.byteLength) {
+    const r = st.cscCrank(dv.getUint16(o, true), dv.getUint16(o + 2, true));
+    if (r !== null && r * 60 < 250) out.cadence = r * 60;
+  }
+  return out;
+}
+/* Cycling Power Measurement (2A63) segons l'especificació:
+   bit0 balanç (1 byte) · bit2 parell acumulat (2) · bit4 roda (4+2, temps 1/2048 s) · bit5 biela (2+2, 1/1024 s) */
+function parseCyclingPower(dv, st) {
+  const out = {};
+  if (dv.byteLength < 4) return out;
+  const f = dv.getUint16(0, true);
+  out.power = dv.getInt16(2, true);
+  let o = 4;
+  if (f & 0x01) o += 1;
+  if (f & 0x04) o += 2;
+  if (f & 0x10) {
+    if (o + 6 <= dv.byteLength) {
+      const r = st.cpWheel(dv.getUint32(o, true), dv.getUint16(o + 4, true));
+      if (r !== null) out.speed = r * WHEEL_M * 3.6;
+    }
+    o += 6;
+  }
+  if (f & 0x20) {
+    if (o + 4 <= dv.byteLength) {
+      const r = st.cpCrank(dv.getUint16(o, true), dv.getUint16(o + 2, true));
+      if (r !== null && r * 60 < 250) out.cadence = r * 60;
+    }
+    o += 4;
+  }
+  return out;
+}
+/* Les notificacions pròpies de Bkool semblen pàgines ANT+ FE-C. Només s'interpreten per al registre. */
+function describeBkoolPage(dv) {
+  if (dv.byteLength < 8) return '';
+  const p = dv.getUint8(0);
+  if (p === 0x19) {
+    const cad = dv.getUint8(2), pw = dv.getUint16(5, true) & 0x0fff;
+    return ` (possible FE-C pàg. 25: cadència ${cad === 0xff ? '?' : cad} rpm, potència ${pw === 0xfff ? '?' : pw} W)`;
+  }
+  if (p === 0x10) {
+    const sp = dv.getUint16(4, true), h = dv.getUint8(6);
+    return ` (possible FE-C pàg. 16: velocitat ${sp === 0xffff ? '?' : (sp * 0.0036).toFixed(1)} km/h, pols ${h === 0xff ? '?' : h})`;
+  }
+  return '';
+}
+function apply(vals) {
+  if (vals.power !== undefined) setPower(vals.power);
+  if (vals.cadence !== undefined) setCadence(vals.cadence);
+  if (vals.speed !== undefined) setSpeed(vals.speed);
+  if (vals.hr !== undefined && vals.hr > 0) setHr(vals.hr);
+}
+
+/* ---------- ordres de control ---------- */
+const bkoolCmd = {
+  init(fitnessBike) {
+    const c = [
+      [0x30, 0x25, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00],
+      [0x32, 0x25, 0xff, 0xff, 0xff, 0x1e, 0x7f, 0x00],
+      [0x33, 0x25, 0xff, 0xff, 0xff, 0x20, 0x4e, 0x00],
+      [0x37, 0x4c, 0x1d, 0xff, 0x80, 0x0c, 0x46, 0x21],
+    ];
+    if (fitnessBike) c.push([0x37, 0xc8, 0x19, 0xff, 0xe0, 0x0a, 0x46, 0x21],
+                            [0x37, 0xc8, 0x19, 0xff, 0xe0, 0x0a, 0x46, 0x21],
+                            [0x32, 0x25, 0xff, 0xff, 0xff, 0x25, 0x7f, 0x00]);
+    else c.push([0x37, 0xee, 0x16, 0xff, 0x80, 0x0c, 0x46, 0x21]);
+    return c;
+  },
+  power(w) { const q = Math.min(65535, Math.max(0, Math.round(w)) * 4); return [0x31, 0x25, 0xff, 0xff, 0xff, 0xff, q & 0xff, q >> 8]; },
+  slope(pct) { const v = Math.min(65535, Math.max(0, Math.round((pct + 200) * 100))); return [0x33, 0x25, 0xff, 0xff, 0xff, v & 0xff, v >> 8, 0xa0]; },
+};
+const ftmsCmd = {
+  requestControl: () => [0x00],
+  start: () => [0x07],
+  power(w) { const v = Math.max(0, Math.min(32767, Math.round(w))); return [0x05, v & 0xff, v >> 8]; },
+  slope(pct) { const g = Math.round(pct * 100) & 0xffff; return [0x11, 0x00, 0x00, g & 0xff, g >> 8, 40, 51]; },  // vent 0, Crr 0.004, Cw 0.51
+};
+
+/* ---------- connexions ---------- */
+const slots = {
+  bike:  { label: 'Bicicleta / rodet', filters: () => [{ services: [UUID.ftms] }, { services: [UUID.bkool] }, { services: [UUID.cp] }, { namePrefix: 'BKOOL' }, { namePrefix: 'Bkool' }] },
+  hr:    { label: 'Sensor de cor', filters: () => [{ services: [UUID.hr] }, ...['COOSPO', 'CooSpo', 'Coospo', 'H6', 'H7', 'H8', 'H9', 'HW', 'COROS', 'TICKR', 'Polar', 'HRM'].map(namePrefix => ({ namePrefix }))] },
+  extra: { label: 'Cadència / potenciòmetre', filters: () => [{ services: [UUID.csc] }, { services: [UUID.cp] }, ...['Wahoo', 'CADENCE', 'Cadence', 'RPM', 'COOSPO', 'CooSpo'].map(namePrefix => ({ namePrefix }))] },
+};
+const control = { kind: null, write: null, hasFtmsControl: false, fitnessBike: false };   // qui rep les ordres
+let sim = null;
+
+function slotUI(key, state, cls) {
+  const el = document.querySelector(`[data-slot="${key}"]`);
+  const s = slots[key];
+  el.querySelector('.dot').className = 'dot' + (cls ? ' ' + cls : '');
+  el.querySelector('.name').textContent = s.device && cls ? (s.device.name || 'Dispositiu sense nom') : s.label;
+  el.querySelector('.state').textContent = state;
+  const b = el.querySelector('button');
+  b.textContent = cls === 'on' ? 'Desconnecta' : cls === 'wait' ? 'Cancel·la' : 'Connecta';
+  b.disabled = cls === 'busy';
+  el.querySelector('[data-act="all"]').style.display = cls ? 'none' : '';
+}
+function makeQueue() {              // Web Bluetooth només admet una operació GATT alhora per dispositiu
+  let chain = Promise.resolve();
+  return (fn) => (chain = chain.then(fn, fn));
+}
+async function pickAndConnect(key, acceptAll) {
+  const s = slots[key];
+  try {
+    const opts = acceptAll ? { acceptAllDevices: true, optionalServices: ALL_SERVICES }
+                           : { filters: s.filters(), optionalServices: ALL_SERVICES };
+    const device = await navigator.bluetooth.requestDevice(opts);
+    log(`${s.label}: triat "${device.name || 'sense nom'}"${acceptAll ? ' (llista sense filtre)' : ''}.`);
+    adopt(key, device);
+    await connect(key);
+  } catch (e) {
+    if (e.name === 'NotFoundError') { log(`${s.label}: selecció cancel·lada.`); return; }
+    log(`${s.label}: ERROR ${e.name}: ${e.message}`);
+    s.wanted = false;
+    slotUI(key, 'Error: ' + e.message, '');
+  }
+}
+async function connect(key) {
+  const s = slots[key], device = s.device;
+  slotUI(key, 'Connectant…', 'wait');
+  log(`${s.label}: connectant a "${device.name || '?'}"…`);
+  const server = await device.gatt.connect();
+  const q = makeQueue(), st = makeSensorState();
+  const services = await server.getPrimaryServices();
+  const found = [];
+  const getChar = async (svc, uuid) => { try { return await svc.getCharacteristic(uuid); } catch { return null; } };
+  const notify = async (svc, uuid, handler) => {
+    const ch = await getChar(svc, uuid);
+    if (!ch) return null;
+    ch.addEventListener('characteristicvaluechanged', (e) => handler(e.target.value));
+    await q(() => ch.startNotifications());
+    return ch;
+  };
+  const byId = (u) => services.find(x => x.uuid === BluetoothUUID.getService(u));
+
+  const dis = byId(UUID.devInfo);
+  let model = '';
+  if (dis) {
+    const ch = await getChar(dis, UUID.modelNumber);
+    if (ch) try { model = new TextDecoder().decode(await q(() => ch.readValue())); } catch {}
+    if (model) log(`${s.label}: model "${model}"`);
+  }
+  const hrS = byId(UUID.hr);
+  if (hrS && await notify(hrS, UUID.hrMeasurement, dv => apply(parseHeartRate(dv)))) found.push('pols');
+  const cscS = byId(UUID.csc);
+  if (cscS && await notify(cscS, UUID.cscMeasurement, dv => apply(parseCSC(dv, st)))) found.push('velocitat/cadència');
+  const cpS = byId(UUID.cp);
+  if (cpS && await notify(cpS, UUID.cpMeasurement, dv => { logRaw('CP 2A63', dv); apply(parseCyclingPower(dv, st)); })) found.push('potència');
+
+  const ftmsS = byId(UUID.ftms);
+  if (ftmsS) {
+    if (await notify(ftmsS, UUID.indoorBikeData, dv => apply(parseIndoorBikeData(dv)))) found.push('FTMS dades');
+    await notify(ftmsS, UUID.ftmsStatus, dv => logRaw('FTMS estat', dv));
+    const cpt = await notify(ftmsS, UUID.ftmsControl, dv => {
+      log(`FTMS resposta: ${hex(dv)}`);
+      if (dv.byteLength >= 3 && dv.getUint8(0) === 0x80 && dv.getUint8(1) === 0x00 && dv.getUint8(2) === 0x01) {
+        control.hasFtmsControl = true;
+        control.write(ftmsCmd.start());
+        sendTarget();
+      }
+    });
+    if (cpt && key === 'bike') {
+      control.kind = 'ftms';
+      control.write = (bytes) => q(() => cpt.writeValueWithResponse(new Uint8Array(bytes)))
+        .then(() => log(`FTMS → ${bytes.map(b => b.toString(16).padStart(2, '0')).join(' ')}`), e => log(`FTMS escriptura ERROR: ${e.message}`));
+      control.write(ftmsCmd.requestControl());
+      found.push('FTMS control');
+    }
+  }
+  const bkS = byId(UUID.bkool);
+  if (bkS) {
+    await notify(bkS, UUID.bkoolNotify1, dv => logRaw('Bkool F03EE004', dv) );
+    await notify(bkS, UUID.bkoolNotify2, dv => { const d = describeBkoolPage(dv); const n = performance.now();
+      if (n - (seenRaw.get('bk6') || -1e9) >= 2000) { seenRaw.set('bk6', n); log(`Bkool F03EE006: ${hex(dv)}${d}`); } });
+    const w = await getChar(bkS, UUID.bkoolWrite);
+    if (w && key === 'bike' && control.kind !== 'ftms') {
+      control.kind = 'bkool';
+      control.fitnessBike = /fitnessbike/i.test(model);
+      const noResp = w.properties.writeWithoutResponse;
+      control.write = (bytes) => q(() => noResp ? w.writeValueWithoutResponse(new Uint8Array(bytes)) : w.writeValueWithResponse(new Uint8Array(bytes)))
+        .then(() => log(`Bkool → ${bytes.map(b => b.toString(16).padStart(2, '0')).join(' ')}`), e => log(`Bkool escriptura ERROR: ${e.message}`));
+      for (const c of bkoolCmd.init(control.fitnessBike)) control.write(c);
+      sendTarget();
+      found.push(`control Bkool${control.fitnessBike ? ' (Fitness Bike)' : ''}`);
+    }
+  }
+  log(`${s.label}: connectat. Serveis: ${found.join(', ') || 'cap de conegut (' + services.map(x => x.uuid).join(', ') + ')'}`);
+  slotUI(key, found.join(' · ') || 'Connectat, sense serveis coneguts', 'on');
+  remember(key, device);
+  updateCtlState();
+}
+/* ---------- reconnexió automàtica ----------
+   Els aparells connectats es recorden (id i nom). En obrir la pàgina, si Chrome exposa getDevices(),
+   es recuperen sense cap clic i s'espera que cada aparell es desperti. */
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function adopt(key, device) {
+  const s = slots[key];
+  s.device = device; s.wanted = true;
+  if (!device.__ccKey) device.addEventListener('gattserverdisconnected', () => onDisconnected(device.__ccKey));
+  device.__ccKey = key;
+}
+function savedDevices() { try { return JSON.parse(localStorage.getItem('cc.devices')) || {}; } catch { return {}; } }
+function remember(key, device) {
+  try { const d = savedDevices(); d[key] = { id: device.id, name: device.name || '' }; localStorage.setItem('cc.devices', JSON.stringify(d)); } catch {}
+}
+function advOrSleep(s, ms) {          // espera un anunci de l'aparell (si el navegador ho permet) o un temps màxim
+  return new Promise(resolve => {
+    const d = s.device; let done = false;
+    const finish = () => { if (done) return; done = true; d.removeEventListener('advertisementreceived', finish); resolve(); };
+    setTimeout(finish, ms);
+    if (!d.watchAdvertisements) return;
+    d.addEventListener('advertisementreceived', finish);
+    if (!s.watching) { s.watching = true; d.watchAdvertisements().catch(() => { s.watching = false; }); }
+  });
+}
+async function waitAndConnect(key) {
+  const s = slots[key];
+  if (s.loop) return;
+  s.loop = true;
+  try {
+    for (let n = 0; s.wanted && n < 300; n++) {
+      try { await connect(key); return; }
+      catch (e) { if (n === 0) log(`${s.label}: "${s.device.name || '?'}" encara no respon (${e.message}). Es continua intentant.`); }
+      if (!s.wanted) return;
+      slotUI(key, key === 'bike' ? 'Esperant la bici… engega-la o pedala' : 'Esperant el sensor… mou-lo per despertar-lo', 'wait');
+      await advOrSleep(s, 6000);
+    }
+    if (s.wanted) { s.wanted = false; slotUI(key, 'No trobat', ''); log(`${s.label}: no s'ha trobat; prem "Connecta".`); }
+  } finally { s.loop = false; }
+}
+async function autoReconnect() {
+  const saved = savedDevices(), keys = Object.keys(saved).filter(k => slots[k]);
+  if (!navigator.bluetooth.getDevices) { $('autoHint').hidden = false; if (keys.length) log('Connexió automàtica no disponible: cal activar el flag de Chrome indicat a "Dispositius".'); return; }
+  if (!keys.length) return;
+  let devs = [];
+  try { devs = await navigator.bluetooth.getDevices(); } catch (e) { log(`Connexió automàtica: ${e.message}`); return; }
+  for (const key of keys) {
+    const d = devs.find(x => x.id === saved[key].id) || devs.find(x => x.name && x.name === saved[key].name);
+    if (!d) { log(`${slots[key].label}: el navegador ja no té permís per a "${saved[key].name}"; prem "Connecta" una vegada.`); continue; }
+    log(`${slots[key].label}: connexió automàtica amb "${d.name || saved[key].name}".`);
+    adopt(key, d);
+    waitAndConnect(key);
+  }
+}
+function onDisconnected(key) {
+  const s = slots[key];
+  if (key === 'bike') { control.kind = null; control.write = null; control.hasFtmsControl = false; updateCtlState(); }
+  if (!s.wanted) { slotUI(key, 'No connectat', ''); log(`${s.label}: desconnectat.`); return; }
+  if (s.loop) return;
+  log(`${s.label}: connexió perduda, es torna a connectar…`);
+  slotUI(key, 'Reconnectant…', 'wait');
+  setTimeout(() => { if (s.wanted) waitAndConnect(key); }, 1500);
+}
+function disconnect(key) {
+  const s = slots[key];
+  s.wanted = false;
+  if (key === 'bike' && control.kind === 'bkool' && control.write) control.write(bkoolCmd.slope(0));
+  setTimeout(() => { try { if (s.device) s.device.gatt.disconnect(); } catch {} slotUI(key, 'No connectat', ''); }, 200);
+}
+
+/* ---------- objectiu (ERG / pendent) ---------- */
+const target = { mode: 'erg', power: 120, slope: 0 };
+let sendTimer = null;
+function sendTarget() {
+  if (sim) { sim.target = target.mode === 'erg' ? target.power : 100 + target.slope * 25; return; }
+  if (!control.write) return;
+  if (control.kind === 'ftms') {
+    if (!control.hasFtmsControl) { control.write(ftmsCmd.requestControl()); return; }
+    control.write(target.mode === 'erg' ? ftmsCmd.power(target.power) : ftmsCmd.slope(target.slope));
+  } else if (control.kind === 'bkool') {
+    control.write(target.mode === 'erg' ? bkoolCmd.power(target.power) : bkoolCmd.slope(target.slope));
+  }
+}
+function queueTarget() { clearTimeout(sendTimer); sendTimer = setTimeout(sendTarget, 250); }
+function updateCtlState() {
+  $('ctlState').textContent = sim ? 'Simulador actiu: les ordres no surten per Bluetooth.'
+    : control.kind === 'ftms' ? 'Control per FTMS (estàndard).'
+    : control.kind === 'bkool' ? 'Control pel protocol propi de Bkool.'
+    : slots.bike.device && slots.bike.device.gatt.connected ? 'Aquesta bici no exposa cap canal de control conegut: només lectura.'
+    : 'Connecta la bici per enviar ordres.';
+}
+function setMode(m) {
+  target.mode = m;
+  document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('sel', b.dataset.mode === m));
+  $('ergCtl').style.display = m === 'erg' ? '' : 'none';
+  $('slopeCtl').style.display = m === 'slope' ? '' : 'none';
+  queueTarget();
+}
+function setTP(w) { target.power = Math.max(50, Math.min(500, w)); $('tp').value = target.power; $('tpVal').textContent = target.power; queueTarget(); }
+function setSL(p) { target.slope = Math.max(-5, Math.min(15, p)); $('sl').value = target.slope; $('slVal').textContent = target.slope.toFixed(1); queueTarget(); }
+
+/* ---------- velocitat estimada quan la bici només dona potència ---------- */
+function estimateSpeedKmh(power, slopePct) {
+  if (!power || power <= 0) return 0;
+  const m = 85, g = 9.81, crr = 0.004, cda = 0.32, rho = 1.2;
+  const f0 = m * g * (crr + slopePct / 100);
+  let lo = 0, hi = 30;
+  for (let i = 0; i < 40; i++) { const v = (lo + hi) / 2; (f0 * v + 0.5 * rho * cda * v ** 3 > power) ? hi = v : lo = v; }
+  return lo * 3.6;
+}
+
+/* ---------- sessió, gràfic i bucle d'1 Hz ---------- */
+const session = { running: false, secs: 0, sumP: 0, maxP: 0, dist: 0, joules: 0, rows: [] };
+const hist = [];   // últims 5 min
+function fmtTime(s) { const m = Math.floor(s / 60); return (m >= 60 ? Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(s % 60).padStart(2, '0'); }
+function tick() {
+  const t = now();
+  playerTick();
+  if (sim) sim.step();
+  const power = live.power !== null && t - live.tPower < 4000 ? live.power : null;
+  const cad = live.cadence !== null && t - live.tCad < 3500 ? live.cadence : (live.cadence !== null ? 0 : null);
+  const hr = live.hr !== null && t - live.tHr < 6000 ? live.hr : null;
+  let spd = live.speed !== null && t - live.tSpd < 4000 ? live.speed : null, est = false;
+  if (spd === null && power !== null) { spd = estimateSpeedKmh(power, target.mode === 'slope' ? target.slope : 0); est = true; }
+  $('vPow').textContent = power ?? '–';
+  $('vCad').textContent = cad ?? '–';
+  $('vHr').textContent = hr ?? '–';
+  $('vSpd').textContent = spd === null ? '–' : spd.toFixed(1);
+  $('uSpd').textContent = est ? 'km/h (estimada)' : 'km/h';
+  hist.push({ p: power, h: hr }); if (hist.length > 300) hist.shift();
+  if (session.running) {
+    session.secs++;
+    session.sumP += power || 0; session.maxP = Math.max(session.maxP, power || 0);
+    session.joules += power || 0; session.dist += (spd || 0) / 3600;
+    session.rows.push([session.secs, power ?? '', cad ?? '', hr ?? '', spd === null ? '' : spd.toFixed(1), target.mode === 'erg' ? target.power : '', target.mode === 'slope' ? target.slope : '']);
+    $('sTime').textContent = fmtTime(session.secs);
+    $('sAvg').textContent = Math.round(session.sumP / session.secs);
+    $('sMax').textContent = session.maxP;
+    $('sDist').textContent = session.dist.toFixed(2);
+    $('sKj').textContent = Math.round(session.joules / 1000);
+  }
+  draw();
+}
+function draw() {
+  const c = $('chart'), g = c.getContext('2d'), W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  const maxP = Math.max(200, ...hist.map(x => x.p || 0), target.mode === 'erg' ? target.power : 0) * 1.15;
+  const x = (i) => (i / 299) * W, yP = (v) => H - (v / maxP) * H, yH = (v) => H - ((v - 40) / 160) * H;
+  g.strokeStyle = '#2b3441'; g.lineWidth = 1; g.fillStyle = '#8b98a8'; g.font = '20px system-ui';
+  for (let w = 100; w < maxP; w += 100) { g.beginPath(); g.moveTo(0, yP(w)); g.lineTo(W, yP(w)); g.stroke(); g.fillText(w + ' W', 8, yP(w) - 6); }
+  if (target.mode === 'erg') { g.setLineDash([10, 8]); g.strokeStyle = '#ff7a1a88'; g.beginPath(); g.moveTo(0, yP(target.power)); g.lineTo(W, yP(target.power)); g.stroke(); g.setLineDash([]); }
+  const line = (key, y, color) => {
+    g.strokeStyle = color; g.lineWidth = 3; g.beginPath(); let pen = false;
+    hist.forEach((pt, i) => { const v = pt[key]; if (v === null) { pen = false; return; }
+      const px = x(i + (300 - hist.length)); pen ? g.lineTo(px, y(v)) : g.moveTo(px, y(v)); pen = true; });
+    g.stroke();
+  };
+  line('p', yP, '#ff7a1a'); line('h', yH, '#ff4d6d');
+}
+
+/* ---------- entrenaments: model, importadors i reproductor ----------
+   Un entrenament és { name, steps: [{ dur (s), p0, p1 (fracció d'FTP, inici i final), cad?, cue?, label? }] } */
+const S = (dur, p, extra) => Object.assign({ dur, p0: p, p1: p }, extra);
+const R = (dur, p0, p1, extra) => Object.assign({ dur, p0, p1 }, extra);
+const repeat = (n, on, off) => Array.from({ length: n }, (_, i) => [Object.assign({}, on, { label: `${on.label} ${i + 1}/${n}` }), Object.assign({}, off)]).flat();
+const BUILTIN = [
+  { name: 'Prova ràpida de resistència', steps: [
+      S(60, 0.50, { label: 'Suau' }), S(60, 0.75, { label: 'Mitjà' }), S(60, 1.00, { label: 'Fort' }),
+      S(60, 0.50, { label: 'Recupera' }), S(30, 1.20, { label: 'Molt fort' }), S(90, 0.50, { label: 'Refreda' })] },
+  { name: 'Sweet Spot 3×8', steps: [
+      R(600, 0.45, 0.75, { label: 'Escalfament' }),
+      ...repeat(3, S(480, 0.90, { label: 'Sweet Spot', cad: 90 }), S(240, 0.55, { label: 'Recupera' })),
+      R(300, 0.60, 0.40, { label: 'Refredament' })] },
+  { name: 'VO2max 5×3', steps: [
+      R(600, 0.45, 0.80, { label: 'Escalfament' }),
+      ...repeat(5, S(180, 1.15, { label: 'VO2max', cad: 95 }), S(180, 0.50, { label: 'Recupera' })),
+      R(480, 0.60, 0.40, { label: 'Refredament' })] },
+  { name: 'Resistència Z2', steps: [
+      R(300, 0.45, 0.65, { label: 'Escalfament' }), S(1800, 0.68, { label: 'Z2 constant', cad: 88 }), R(300, 0.60, 0.40, { label: 'Refredament' })] },
+];
+function parseZWO(text, fallbackName) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const wk = doc.querySelector('workout');
+  if (!wk) throw new Error('No hi ha cap <workout> al fitxer.');
+  const steps = [];
+  const num = (el, a, d) => el.hasAttribute(a) && isFinite(parseFloat(el.getAttribute(a))) ? parseFloat(el.getAttribute(a)) : d;
+  for (const el of wk.children) {
+    const tag = el.tagName.toLowerCase(), dur = num(el, 'Duration', 0);
+    const cueEl = el.querySelector('textevent'), cue = cueEl ? cueEl.getAttribute('message') : undefined;
+    const cad = num(el, 'Cadence', undefined);
+    if (tag === 'steadystate') { const p = num(el, 'Power', num(el, 'PowerLow', 0.5)); steps.push(S(dur, p, { cad, cue, label: 'Tram' })); }
+    else if (tag === 'warmup' || tag === 'cooldown' || tag === 'ramp') {
+      steps.push(R(dur, num(el, 'PowerLow', 0.4), num(el, 'PowerHigh', 0.6), { cad, cue, label: tag === 'warmup' ? 'Escalfament' : tag === 'cooldown' ? 'Refredament' : 'Rampa' }));
+    } else if (tag === 'intervalst') {
+      const n = num(el, 'Repeat', 1);
+      for (let i = 0; i < n; i++) {
+        steps.push(S(num(el, 'OnDuration', 60), num(el, 'OnPower', 1), { cad, label: `Interval ${i + 1}/${n}` }));
+        steps.push(S(num(el, 'OffDuration', 60), num(el, 'OffPower', 0.5), { cad: num(el, 'CadenceResting', undefined), label: 'Recupera' }));
+      }
+    } else if (tag === 'freeride' || tag === 'maxeffort') steps.push(S(dur, 0.5, { cue, label: 'Lliure' }));
+  }
+  const nm = doc.querySelector('workout_file > name');
+  return { name: (nm && nm.textContent.trim()) || fallbackName, steps };
+}
+function parseICTX(text, fallbackName) {
+  // La <description> dels .ictx porta HTML sense tancar (<br>) i trenca l'XML: es treu abans de llegir.
+  text = text.replace(/<description>[\s\S]*?<\/description>/g, '').replace(/<image>[\s\S]*?<\/image>/g, '');
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const seqs = doc.querySelectorAll('sequence');
+  if (!seqs.length) throw new Error('No hi ha cap <sequence> al fitxer.');
+  const txt = (el, t) => { const c = el.querySelector(t); return c ? c.textContent.trim() : ''; };
+  const steps = [];
+  for (const sq of seqs) {
+    const loops = Math.max(1, parseInt(txt(sq, 'loops')) || 1), sname = txt(sq, 'name');
+    const legs = [...sq.querySelectorAll('leg')].map(leg => {
+      const [m, s] = txt(leg, 'duration').split(':').map(Number);
+      const ratio = parseFloat(txt(leg, 'levelRatio')) || 60, rpm = parseInt(txt(leg, 'rpm')) || undefined;
+      const standing = txt(leg, 'position') === 'standing';
+      return S((m || 0) * 60 + (s || 0), ratio / 100, { cad: rpm, cue: txt(leg, 'comment') || undefined, label: (sname || 'Tram') + (standing ? ' · dret' : '') });
+    });
+    for (let i = 0; i < loops; i++) steps.push(...legs.map(l => Object.assign({}, l)));
+  }
+  const nm = [...doc.querySelectorAll('name')].find(n => !n.closest('sequence'));
+  return { name: (nm && nm.textContent.trim()) || fallbackName, steps };
+}
+function parseMRC(text, fallbackName, ftpWatts) {      // .mrc (% FTP) i .erg (watts)
+  const lines = text.split(/\r?\n/);
+  const hdr = lines.join('\n').toUpperCase();
+  const watts = /MINUTES\s+WATTS/.test(hdr);
+  const fm = hdr.match(/^\s*FTP\s*=\s*(\d+)/m), fileFtp = fm ? +fm[1] : ftpWatts;
+  const dm = text.match(/^\s*DESCRIPTION\s*=\s*(.+)$/mi);
+  const a = lines.findIndex(l => /\[COURSE DATA\]/i.test(l)), b = lines.findIndex(l => /\[END COURSE DATA\]/i.test(l));
+  if (a < 0) throw new Error('No hi ha [COURSE DATA] al fitxer.');
+  const pts = lines.slice(a + 1, b < 0 ? undefined : b).map(l => l.trim().split(/[\s,;]+/).map(Number)).filter(p => p.length >= 2 && p.every(isFinite));
+  const steps = [];
+  for (let i = 1; i < pts.length; i++) {
+    const dur = Math.round((pts[i][0] - pts[i - 1][0]) * 60);
+    if (dur <= 0) continue;
+    const f = (v) => watts ? v / fileFtp : v / 100;
+    steps.push(R(dur, f(pts[i - 1][1]), f(pts[i][1]), { label: 'Tram' }));
+  }
+  return { name: (dm && dm[1].trim()) || fallbackName, steps };
+}
+function parseWorkoutFile(name, text, ftpWatts) {
+  const base = name.replace(/\.[^.]+$/, '');
+  text = text.replace(/^\uFEFF/, '');
+  let w;
+  if (/\.ictx$/i.test(name) || /<sequence>/.test(text)) w = parseICTX(text, base);
+  else if (/\.(mrc|erg)$/i.test(name) || /\[COURSE DATA\]/i.test(text)) w = parseMRC(text, base, ftpWatts);
+  else w = parseZWO(text, base);
+  w.steps = w.steps.filter(s => s.dur > 0 && isFinite(s.p0) && isFinite(s.p1));
+  if (!w.steps.length) throw new Error('El fitxer no conté cap tram vàlid.');
+  return w;
+}
+
+const player = { w: null, t: 0, playing: false, intensity: 1, idx: -1, total: 0, ftp: 200, trace: [] };
+let audio = null;
+function beep(freq, ms) {
+  try { if (!audio) return; const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; g.gain.value = 0.15; o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + ms / 1000); } catch {}
+}
+const zoneColor = (f) => f < 0.6 ? '#6b7888' : f < 0.76 ? '#4da3ff' : f < 0.9 ? '#3ecf8e' : f < 1.05 ? '#f2c744' : f < 1.2 ? '#ff7a1a' : '#ff5d5d';
+function locate(t) {
+  let acc = 0;
+  for (let i = 0; i < player.w.steps.length; i++) { const s = player.w.steps[i]; if (t < acc + s.dur) return { i, s, into: t - acc }; acc += s.dur; }
+  return null;
+}
+const stepWatts = (s, into) => Math.round(player.ftp * player.intensity * (s.p0 + (s.p1 - s.p0) * (s.dur ? into / s.dur : 0)));
+function loadWorkout(w) {
+  player.w = w; player.t = 0; player.playing = false; player.idx = -1; player.trace = [];
+  player.total = w.steps.reduce((a, s) => a + s.dur, 0);
+  $('wPlay').textContent = 'Comença';
+  renderPlayer();
+}
+function renderPlayer() {
+  const w = player.w; if (!w) return;
+  /* Perfil a l'estil icTrainer: blocs = potència objectiu (W), línia discontínua = cadència objectiu,
+     i al damunt el que s'ha fet de veritat (potència en blanc, cadència en blau). */
+  const c = $('wChart'), g = c.getContext('2d'), W = c.width, H = c.height;
+  const L = 70, Rm = 70, T = 14, B = 34, PW = W - L - Rm, PH = H - T - B;
+  g.clearRect(0, 0, W, H);
+  const k = player.ftp * player.intensity;
+  const maxW = Math.max(k * 1.3, ...w.steps.map(s => Math.max(s.p0, s.p1) * k), player.trace.reduce((m, r) => Math.max(m, (r && r.p) || 0), 0)) * 1.08;
+  const X = (t) => L + t / player.total * PW, YW = (v) => T + PH - Math.min(v, maxW) / maxW * PH;
+  const C0 = 40, C1 = 130, YC = (v) => T + PH - (Math.max(C0, Math.min(C1, v)) - C0) / (C1 - C0) * PH;
+  g.font = '20px system-ui'; g.lineWidth = 1;
+  const stepW = maxW > 450 ? 100 : 50;
+  for (let v = stepW; v < maxW; v += stepW) { g.strokeStyle = '#2b3441'; g.beginPath(); g.moveTo(L, YW(v)); g.lineTo(L + PW, YW(v)); g.stroke();
+    g.fillStyle = '#8b98a8'; g.textAlign = 'right'; g.fillText(v + ' W', L - 8, YW(v) + 7); }
+  g.fillStyle = '#4da3ff'; g.textAlign = 'left';
+  for (const v of [60, 80, 100, 120]) g.fillText(v + ' rpm', L + PW + 8, YC(v) + 7);
+  let acc = 0;
+  for (const s of w.steps) {
+    const x0 = X(acc), x1 = X(acc + s.dur), done = acc + s.dur <= player.t;
+    g.fillStyle = zoneColor((s.p0 + s.p1) / 2) + (done ? '55' : '99');
+    g.beginPath(); g.moveTo(x0, T + PH); g.lineTo(x0, YW(s.p0 * k)); g.lineTo(x1 - 1, YW(s.p1 * k)); g.lineTo(x1 - 1, T + PH); g.fill();
+    acc += s.dur;
+  }
+  g.strokeStyle = '#ffffff44'; g.setLineDash([8, 8]); g.beginPath(); g.moveTo(L, YW(player.ftp)); g.lineTo(L + PW, YW(player.ftp)); g.stroke();
+  g.fillStyle = '#ffffff88'; g.textAlign = 'left'; g.fillText('FTP', L + 6, YW(player.ftp) - 6);
+  g.strokeStyle = '#4da3ff'; g.lineWidth = 3; g.setLineDash([10, 8]); acc = 0;          // cadència objectiu
+  for (const s of w.steps) { if (s.cad) { g.beginPath(); g.moveTo(X(acc), YC(s.cad)); g.lineTo(X(acc + s.dur), YC(s.cad)); g.stroke(); } acc += s.dur; }
+  g.setLineDash([]);
+  const trace = (key, Y, color, width) => {
+    g.strokeStyle = color; g.lineWidth = width; g.lineJoin = 'round'; g.beginPath(); let pen = false;
+    for (let t = 0; t < player.trace.length; t++) { const r = player.trace[t], v = r ? r[key] : null;
+      if (v === null || v === undefined) { pen = false; continue; }
+      pen ? g.lineTo(X(t + 1), Y(v)) : g.moveTo(X(t + 1), Y(v)); pen = true; }
+    g.stroke();
+  };
+  trace('c', YC, '#4da3ff', 3);
+  trace('p', YW, '#0e1116', 7); trace('p', YW, '#ffffff', 3.5);
+  g.textAlign = 'center'; g.fillStyle = '#8b98a8';
+  const tickMin = player.total > 5400 ? 20 : player.total > 2400 ? 10 : player.total > 900 ? 5 : 1;
+  for (let m = 0; m * 60 <= player.total; m += tickMin) g.fillText(m + "'", X(m * 60), H - 8);
+  if (player.t > 0) { g.fillStyle = '#ff7a1a'; g.fillRect(X(player.t) - 2, T, 4, PH); }
+  const loc = locate(Math.min(player.t, player.total - 1));
+  if (!loc) return;
+  const { i, s, into } = loc, next = w.steps[i + 1];
+  $('wStep').textContent = `${i + 1}/${w.steps.length} · ${s.label || 'Tram'}`;
+  $('wTarget').textContent = stepWatts(s, into) + ' W';
+  $('wCad').textContent = s.cad ? `a ${Math.round(s.cad)} rpm` : '';
+  $('wLeft').textContent = fmtTime(Math.max(0, s.dur - Math.floor(into)));
+  $('wTotal').textContent = fmtTime(Math.max(0, player.total - player.t));
+  $('wCue').innerHTML = '';
+  const parts = [];
+  if (s.cue) parts.push(s.cue);
+  if (s.cad) parts.push(`Cadència ${Math.round(s.cad)} rpm`);
+  $('wCue').append(parts.join(' · '));
+  if (next) { const sm = document.createElement('small'); sm.textContent = `${parts.length ? '  —  ' : ''}Després: ${next.label || 'tram'} a ${stepWatts(next, 0)} W, ${fmtTime(next.dur)}`; $('wCue').append(sm); }
+}
+function applyPlayer() {
+  const loc = locate(player.t); if (!loc) return;
+  if (target.mode !== 'erg') setMode('erg');
+  const watts = stepWatts(loc.s, loc.into);
+  if (watts !== target.power) setTP(watts);
+  if (loc.i !== player.idx) {
+    player.idx = loc.i; beep(880, 250);
+    log(`Entrenament: tram ${loc.i + 1}/${player.w.steps.length} "${loc.s.label || ''}" → ${watts} W durant ${fmtTime(loc.s.dur)}`);
+  } else if (loc.s.dur - loc.into <= 3 && loc.s.dur > 10) beep(660, 90);
+}
+function playerTick() {
+  if (!player.playing) return;
+  const tn = now();
+  player.trace[player.t] = { p: live.power !== null && tn - live.tPower < 4000 ? live.power : null,
+                             c: live.cadence !== null && tn - live.tCad < 3500 ? live.cadence : null };
+  player.t++;
+  if (player.t >= player.total) { stopWorkout(true); return; }
+  applyPlayer(); renderPlayer();
+}
+function stopWorkout(finished) {
+  if (!player.w) return;
+  const was = player.playing || player.t > 0;
+  player.playing = false; player.t = 0; player.idx = -1;
+  $('wPlay').textContent = 'Comença';
+  if (was) { log(finished ? 'Entrenament acabat.' : 'Entrenament aturat.'); if (finished) { beep(1040, 600); setTP(Math.round(player.ftp * 0.4)); } }
+  renderPlayer();
+}
+function fillWorkoutSelect(selIndex) {
+  const sel = $('wSel'); sel.innerHTML = '';
+  workouts.forEach((w, i) => { const o = document.createElement('option'); o.value = i;
+    o.textContent = `${w.name} · ${fmtTime(w.steps.reduce((a, s) => a + s.dur, 0))}`; sel.append(o); });
+  sel.value = selIndex;
+}
+const workouts = BUILTIN.slice();
+function loadLibrary() { try { return (JSON.parse(localStorage.getItem('cc.library')) || []).filter(w => w && w.name && Array.isArray(w.steps) && w.steps.length); } catch { return []; } }
+function saveToLibrary(w) {
+  try { const lib = loadLibrary().filter(x => x.name !== w.name); lib.unshift({ name: w.name, steps: w.steps });
+        localStorage.setItem('cc.library', JSON.stringify(lib.slice(0, 20))); } catch {}
+}
+function addWorkout(w, origin) {
+  const i = workouts.findIndex(x => x.name === w.name && !BUILTIN.includes(x));
+  if (i >= 0) workouts[i] = w; else workouts.push(w);
+  saveToLibrary(w);
+  const idx = workouts.indexOf(w);
+  if (player.playing) { fillWorkoutSelect(workouts.indexOf(player.w)); log(`${origin}: "${w.name}" afegit a la llista (hi ha un entrenament en marxa).`); return; }
+  fillWorkoutSelect(idx); stopWorkout(false); loadWorkout(w);
+  log(`${origin}: "${w.name}", ${w.steps.length} trams, ${fmtTime(player.total)}.`);
+}
+/* Entrenament enviat per la web d'intervals (mateix origen): { name, ftp, intervals: [WorkoutInterval] } */
+function fromBuilder(p) {
+  const LBL = { warmup: 'Escalfament', interval: 'Interval', recovery: 'Recupera', cooldown: 'Refredament' };
+  const steps = (p.intervals || []).map(iv => S(Math.round(+iv.duration_seconds) || 0, (+iv.power_percent_ftp || 0) / 100, {
+    cad: iv.cadence_rpm_target ? +iv.cadence_rpm_target : undefined,
+    cue: typeof iv.cue === 'string' && iv.cue.trim() ? iv.cue.trim() : undefined,
+    label: (LBL[iv.type] || 'Tram') + (iv.posture_cue === 'standing' ? ' · dret' : '') })).filter(s => s.dur > 0 && s.p0 > 0);
+  if (!steps.length) throw new Error('entrenament buit');
+  return { name: String(p.name || 'Entrenament').slice(0, 80), steps };
+}
+function takePending() {
+  let raw = null;
+  try { raw = localStorage.getItem('cc.pendingWorkout'); if (raw) localStorage.removeItem('cc.pendingWorkout'); } catch {}
+  if (!raw) return;
+  try {
+    const p = JSON.parse(raw), w = fromBuilder(p);
+    if (p.ftp >= 80 && p.ftp <= 500) { player.ftp = Math.round(p.ftp); $('ftp').value = player.ftp; try { localStorage.setItem('cc.ftp', player.ftp); } catch {} }
+    addWorkout(w, 'Rebut de la web d\'intervals');
+  } catch (e) { log(`No s'ha pogut carregar l'entrenament rebut: ${e.message}`); }
+}
+
+/* ---------- simulador ---------- */
+function makeSim() {
+  const s = { target: target.power, p: 0, cad: 85, hr: 95,
+    step() { s.p += (s.target - s.p) * 0.35 + (Math.random() - 0.5) * 8;
+      s.cad += (Math.random() - 0.5) * 3; s.cad = Math.max(70, Math.min(100, s.cad));
+      s.hr += ((95 + s.p * 0.3) - s.hr) * 0.05;
+      setPower(s.p); setCadence(s.cad); setHr(Math.round(s.hr)); } };
+  return s;
+}
+
+/* ---------- interfície ---------- */
+let wakeLock = null;
+async function keepAwake(on) {
+  try { if (on && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+        else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; } } catch {}
+}
+function init() {
+  const hasBT = !!navigator.bluetooth;
+  if (!hasBT) { $('nobt').classList.add('show'); log('Web Bluetooth no disponible en aquest navegador.'); }
+  else { log('Web Bluetooth disponible.'); autoReconnect(); }
+  document.querySelectorAll('[data-act="connect"]').forEach(b => {
+    const key = b.closest('[data-slot]').dataset.slot;
+    b.disabled = !hasBT;
+    b.onclick = () => { slots[key].wanted ? disconnect(key) : pickAndConnect(key, false); };
+  });
+  document.querySelectorAll('[data-act="all"]').forEach(b => { b.disabled = !hasBT;
+    b.onclick = () => pickAndConnect(b.closest('[data-slot]').dataset.slot, true); });
+  $('simBtn').onclick = () => {
+    sim = sim ? null : makeSim();
+    $('simBtn').textContent = sim ? 'Atura el simulador' : 'Simulador';
+    $('simBtn').classList.toggle('primary', !!sim);
+    log(sim ? 'Simulador activat.' : 'Simulador aturat.');
+    if (sim) sendTarget();
+    updateCtlState();
+  };
+  document.querySelectorAll('#modes button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+  $('tp').oninput = (e) => setTP(+e.target.value);
+  $('sl').oninput = (e) => setSL(+e.target.value);
+  document.querySelectorAll('[data-tp]').forEach(b => b.onclick = () => setTP(target.power + +b.dataset.tp));
+  document.querySelectorAll('[data-tpset]').forEach(b => b.onclick = () => setTP(+b.dataset.tpset));
+  document.querySelectorAll('[data-sl]').forEach(b => b.onclick = () => setSL(target.slope + +b.dataset.sl));
+  document.querySelectorAll('[data-slset]').forEach(b => b.onclick = () => setSL(+b.dataset.slset));
+  $('startBtn').onclick = () => { session.running = !session.running; $('startBtn').textContent = session.running ? 'Pausa' : 'Continua'; keepAwake(session.running); };
+  $('resetBtn').onclick = () => { Object.assign(session, { running: false, secs: 0, sumP: 0, maxP: 0, dist: 0, joules: 0, rows: [] });
+    $('startBtn').textContent = 'Inicia sessió'; $('sTime').textContent = '00:00'; $('sAvg').textContent = '–'; $('sMax').textContent = '–'; $('sDist').textContent = '0.00'; $('sKj').textContent = '0'; keepAwake(false); };
+  $('csvBtn').onclick = () => {
+    const csv = 'segon,potencia_w,cadencia_rpm,pols_ppm,velocitat_kmh,objectiu_w,pendent_pct\n' + session.rows.map(r => r.join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `sessio-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`; a.click();
+  };
+  $('copyLog').onclick = async () => { try { await navigator.clipboard.writeText(logEl.textContent); log('Registre copiat.'); }
+    catch { const r = document.createRange(); r.selectNodeContents(logEl); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } };
+  $('clearLog').onclick = () => { logEl.textContent = ''; };
+  try { const f = +localStorage.getItem('cc.ftp'); if (f >= 80 && f <= 500) player.ftp = f; } catch {}
+  $('ftp').value = player.ftp;
+  $('ftp').onchange = (e) => { const f = Math.max(80, Math.min(500, +e.target.value || 200)); player.ftp = f; e.target.value = f;
+    try { localStorage.setItem('cc.ftp', f); } catch {} if (player.playing) applyPlayer(); renderPlayer(); };
+  workouts.push(...loadLibrary());
+  fillWorkoutSelect(0); loadWorkout(workouts[0]);
+  takePending();
+  window.addEventListener('storage', (e) => { if (e.key === 'cc.pendingWorkout' && e.newValue) takePending(); });
+  $('wSel').onchange = (e) => { stopWorkout(false); loadWorkout(workouts[+e.target.value]); };
+  $('wImport').onclick = () => $('wFile').click();
+  $('wFile').onchange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try { const w = parseWorkoutFile(file.name, await file.text(), player.ftp);
+      addWorkout(w, 'Entrenament importat'); }
+    catch (err) { log(`No s'ha pogut importar ${file.name}: ${err.message}`); }
+    e.target.value = '';
+  };
+  $('wPlay').onclick = () => {
+    if (!audio) try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+    player.playing = !player.playing;
+    $('wPlay').textContent = player.playing ? 'Pausa' : 'Continua';
+    if (player.playing) { if (player.t === 0) player.trace = []; if (!session.running) $('startBtn').click(); applyPlayer(); renderPlayer(); }
+  };
+  $('wSkip').onclick = () => { const loc = player.w && locate(player.t); if (!loc) return;
+    player.t += Math.ceil(loc.s.dur - loc.into); if (player.t >= player.total) stopWorkout(true); else { applyPlayer(); renderPlayer(); } };
+  $('wStop').onclick = () => stopWorkout(false);
+  const setInt = (d) => { player.intensity = Math.max(0.5, Math.min(1.5, Math.round((player.intensity + d) * 100) / 100));
+    $('wInt').textContent = Math.round(player.intensity * 100); if (player.playing) applyPlayer(); renderPlayer(); };
+  $('wLess').onclick = () => setInt(-0.05); $('wMore').onclick = () => setInt(0.05);
+  setInterval(tick, 1000); draw();
+}
+init();
+</script>
+</body>
+</html>

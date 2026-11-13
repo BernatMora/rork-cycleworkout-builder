@@ -139,6 +139,7 @@ const TRANSLATIONS = {
     validationTitle: 'Pre-export check',
     downloadWorkout: 'Download Workout',
     downloadPlan: 'Download Full Plan',
+    rideOnBike: 'Ride it on the bike',
     heroSingleTitle: 'Cycle Workout Builder',
     heroPlanTitle: 'Cycle Plan Builder',
     ftpPlaceholder: 'e.g. 250',
@@ -380,6 +381,7 @@ const TRANSLATIONS = {
     validationTitle: 'Validacio abans d\'exportar',
     downloadWorkout: 'Descarrega entrenament',
     downloadPlan: 'Descarrega pla complet',
+    rideOnBike: 'Fes-lo a la bici',
     heroSingleTitle: 'Constructor d\'entrenaments',
     heroPlanTitle: 'Constructor de plans',
     ftpPlaceholder: 'ex. 250',
@@ -621,6 +623,7 @@ const TRANSLATIONS = {
     validationTitle: 'Validacion antes de exportar',
     downloadWorkout: 'Descargar entrenamiento',
     downloadPlan: 'Descargar plan completo',
+    rideOnBike: 'Hacerlo en la bici',
     heroSingleTitle: 'Constructor de entrenamientos',
     heroPlanTitle: 'Constructor de planes',
     ftpPlaceholder: 'ej. 250',
@@ -4057,6 +4060,44 @@ export default function HomeScreen() {
     generatePlanSession,
   ]);
 
+  // Envia l'entrenament al reproductor Bluetooth (public/bici.html). Comparteixen origen, aixi que
+  // viatja per localStorage: si el reproductor ja es obert el rep a l'instant (event 'storage') i no
+  // es recarrega, perque recarregar-lo tallaria la connexio amb la bici.
+  const handleRideOnBike = useCallback((workout: { name: string; intervals: WorkoutInterval[] }) => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem('cc.pendingWorkout', JSON.stringify({
+        name: workout.name,
+        ftp: ftpNum > 0 ? ftpNum : undefined,
+        intervals: workout.intervals,
+        sentAt: Date.now(),
+      }));
+
+      const player = window.open('', 'cycleconnect-bici');
+      if (!player) {
+        window.location.href = '/bici.html';
+        return;
+      }
+
+      let alreadyOpen = false;
+      try {
+        alreadyOpen = player.location.pathname.endsWith('/bici.html');
+      } catch {
+        alreadyOpen = false;
+      }
+
+      if (!alreadyOpen) {
+        player.location.href = '/bici.html';
+      }
+      player.focus();
+    } catch (error) {
+      console.error('[HomeScreen] Could not send workout to the bike player:', error);
+    }
+  }, [ftpNum]);
+
   const buildWorkoutExportContent = useCallback((format: ExportSingleFileFormat, workout: PlanWorkout, workoutName: string): string => {
     if (format === '.ictx') {
       return generateIctxXml(workout.intervals, workoutName, {
@@ -5867,6 +5908,18 @@ export default function HomeScreen() {
                     <Text style={styles.editWorkoutButtonText}>Edit Workout</Text>
                   </TouchableOpacity>
 
+                  {Platform.OS === 'web' && (
+                    <TouchableOpacity
+                      style={styles.rideOnBikeButton}
+                      onPress={() => handleRideOnBike({ name: getDisplayWorkoutName(selectedWorkout), intervals: selectedWorkout.intervals })}
+                      activeOpacity={0.8}
+                      testID="ride-on-bike-button"
+                    >
+                      <Bike size={20} color="#FFFFFF" />
+                      <Text style={styles.rideOnBikeButtonText}>{t('rideOnBike')}</Text>
+                    </TouchableOpacity>
+                  )}
+
                   {exportValidation && (
                     <View style={styles.validationCard}>
                       <Text style={styles.validationTitle}>{t('validationTitle')}</Text>
@@ -7001,6 +7054,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.accent,
     borderStyle: 'dashed' as const,
+  },
+  rideOnBikeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.accent,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 12,
+    gap: 10,
+  },
+  rideOnBikeButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   editWorkoutButtonText: {
     fontSize: 14,
