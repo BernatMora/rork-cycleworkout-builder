@@ -140,6 +140,7 @@ const TRANSLATIONS = {
     downloadWorkout: 'Download Workout',
     downloadPlan: 'Download Full Plan',
     rideOnBike: 'Ride it on the bike',
+    sentToBike: 'Sent to the bike player that is already open',
     heroSingleTitle: 'Cycle Workout Builder',
     heroPlanTitle: 'Cycle Plan Builder',
     ftpPlaceholder: 'e.g. 250',
@@ -382,6 +383,7 @@ const TRANSLATIONS = {
     downloadWorkout: 'Descarrega entrenament',
     downloadPlan: 'Descarrega pla complet',
     rideOnBike: 'Fes-lo a la bici',
+    sentToBike: 'Enviat al reproductor de la bici que ja tens obert',
     heroSingleTitle: 'Constructor d\'entrenaments',
     heroPlanTitle: 'Constructor de plans',
     ftpPlaceholder: 'ex. 250',
@@ -624,6 +626,7 @@ const TRANSLATIONS = {
     downloadWorkout: 'Descargar entrenamiento',
     downloadPlan: 'Descargar plan completo',
     rideOnBike: 'Hacerlo en la bici',
+    sentToBike: 'Enviado al reproductor de la bici que ya tienes abierto',
     heroSingleTitle: 'Constructor de entrenamientos',
     heroPlanTitle: 'Constructor de planes',
     ftpPlaceholder: 'ej. 250',
@@ -4076,27 +4079,40 @@ export default function HomeScreen() {
         sentAt: Date.now(),
       }));
 
-      const player = window.open('', 'cycleconnect-bici');
-      if (!player) {
-        window.location.href = '/bici.html';
+      const openPlayer = () => {
+        const player = window.open('/bici.html', '_blank');
+        if (!player) {
+          window.location.href = '/bici.html';
+        }
+      };
+
+      // Si ja hi ha un reproductor obert (encara que s'hagi obert directament), respon al 'ping' i
+      // l'entrenament li arriba per l'event 'storage'; nomes se n'obre un de nou si ningu respon.
+      if (typeof BroadcastChannel === 'undefined') {
+        openPlayer();
         return;
       }
 
-      let alreadyOpen = false;
-      try {
-        alreadyOpen = player.location.pathname.endsWith('/bici.html');
-      } catch {
-        alreadyOpen = false;
-      }
-
-      if (!alreadyOpen) {
-        player.location.href = '/bici.html';
-      }
-      player.focus();
+      const channel = new BroadcastChannel('cc-player');
+      let answered = false;
+      channel.onmessage = (event: MessageEvent) => {
+        if (event.data === 'pong') {
+          answered = true;
+        }
+      };
+      channel.postMessage('ping');
+      setTimeout(() => {
+        channel.close();
+        if (answered) {
+          setDownloadStatus(t('sentToBike'));
+        } else {
+          openPlayer();
+        }
+      }, 300);
     } catch (error) {
       console.error('[HomeScreen] Could not send workout to the bike player:', error);
     }
-  }, [ftpNum]);
+  }, [ftpNum, t]);
 
   const buildWorkoutExportContent = useCallback((format: ExportSingleFileFormat, workout: PlanWorkout, workoutName: string): string => {
     if (format === '.ictx') {
