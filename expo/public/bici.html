@@ -132,7 +132,7 @@
         </div>
         <div class="ctl" id="ergCtl">
           <label>Potència objectiu <b><span id="tpVal">120</span> W</b></label>
-          <input id="tp" type="range" min="50" max="500" step="5" value="120">
+          <input id="tp" type="range" aria-label="Potència objectiu en watts" min="50" max="500" step="5" value="120">
           <div class="row">
             <button data-tp="-10">−10</button><button data-tp="10">+10</button>
             <button data-tpset="100">100</button><button data-tpset="150">150</button>
@@ -141,7 +141,7 @@
         </div>
         <div class="ctl" id="slopeCtl" style="display:none">
           <label>Pendent <b><span id="slVal">0.0</span> %</b></label>
-          <input id="sl" type="range" min="-5" max="15" step="0.5" value="0">
+          <input id="sl" type="range" aria-label="Pendent en percentatge" min="-5" max="15" step="0.5" value="0">
           <div class="row">
             <button data-sl="-1">−1</button><button data-sl="1">+1</button>
             <button data-slset="0">0 %</button><button data-slset="4">4 %</button><button data-slset="8">8 %</button>
@@ -181,7 +181,7 @@
           <select id="wSel" aria-label="Entrenament"></select>
           <button id="wImport">Importa fitxer…</button>
           <input type="file" id="wFile" accept=".zwo,.ictx,.mrc,.erg,.xml" hidden>
-          <label class="ftp">FTP <input id="ftp" type="number" min="80" max="500" step="5" value="200"> W</label>
+          <label class="ftp">FTP <input id="ftp" type="number" min="50" max="500" step="5" value="200"> W</label>
         </div>
         <canvas id="wChart" width="1200" height="480"></canvas>
         <div class="legend"><span><i class="blk"></i>Potència objectiu</span><span><i style="border-color:#fff"></i>La teva potència</span><span><i class="dash" style="border-color:#4da3ff"></i>Cadència objectiu</span><span><i style="border-color:#4da3ff"></i>La teva cadència</span></div>
@@ -568,8 +568,9 @@ function onDisconnected(key) {
 function disconnect(key) {
   const s = slots[key];
   s.wanted = false;
-  if (key === 'bike' && control.kind === 'bkool' && control.write) control.write(bkoolCmd.slope(0));
-  setTimeout(() => { try { if (s.device) s.device.gatt.disconnect(); } catch {} slotUI(key, 'No connectat', ''); }, 200);
+  let last = null;
+  if (key === 'bike' && control.write) last = control.write(control.kind === 'ftms' ? [0x08, 0x01] : bkoolCmd.slope(0));   // FTMS: Stop · Bkool: pendent 0 %
+  Promise.race([last, sleep(800)]).then(() => { try { if (s.device) s.device.gatt.disconnect(); } catch {} slotUI(key, 'No connectat', ''); });
 }
 
 /* ---------- objectiu (ERG / pendent) ---------- */
@@ -614,12 +615,18 @@ function estimateSpeedKmh(power, slopePct) {
 }
 
 /* ---------- sessió, gràfic i bucle d'1 Hz ---------- */
-const session = { running: false, secs: 0, sumP: 0, maxP: 0, dist: 0, joules: 0, rows: [] };
+const session = { running: false, secs: 0, sumP: 0, nP: 0, maxP: 0, dist: 0, joules: 0, rows: [] };
 const hist = [];   // últims 5 min
 function fmtTime(s) { const m = Math.floor(s / 60); return (m >= 60 ? Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(s % 60).padStart(2, '0'); }
+const clock = { base: null, done: 0 };
 function tick() {
   const t = now();
-  playerTick();
+  if (clock.base === null) clock.base = t - 1000;
+  const due = Math.floor((t - clock.base) / 1000) - clock.done;
+  const n = Math.max(0, Math.min(3600, due));
+  clock.done += due;
+  if (n === 0) return;
+  for (let i = 0; i < n; i++) playerTick();
   if (sim) sim.step();
   const power = live.power !== null && t - live.tPower < 4000 ? live.power : null;
   const cad = live.cadence !== null && t - live.tCad < 3500 ? live.cadence : (live.cadence !== null ? 0 : null);
@@ -633,12 +640,14 @@ function tick() {
   $('uSpd').textContent = est ? 'km/h (estimada)' : 'km/h';
   hist.push({ p: power, h: hr }); if (hist.length > 300) hist.shift();
   if (session.running) {
-    session.secs++;
-    session.sumP += power || 0; session.maxP = Math.max(session.maxP, power || 0);
-    session.joules += power || 0; session.dist += (spd || 0) / 3600;
-    session.rows.push([session.secs, power ?? '', cad ?? '', hr ?? '', spd === null ? '' : spd.toFixed(1), target.mode === 'erg' ? target.power : '', target.mode === 'slope' ? target.slope : '']);
+    for (let i = 0; i < n; i++) {
+      session.secs++;
+      if (power !== null) { session.sumP += power; session.nP++; session.joules += power; session.maxP = Math.max(session.maxP, power); }
+      session.dist += (spd || 0) / 3600;
+      session.rows.push([session.secs, power ?? '', cad ?? '', hr ?? '', spd === null ? '' : spd.toFixed(1), target.mode === 'erg' ? target.power : '', target.mode === 'slope' ? target.slope : '']);
+    }
     $('sTime').textContent = fmtTime(session.secs);
-    $('sAvg').textContent = Math.round(session.sumP / session.secs);
+    $('sAvg').textContent = session.nP ? Math.round(session.sumP / session.nP) : '–';
     $('sMax').textContent = session.maxP;
     $('sDist').textContent = session.dist.toFixed(2);
     $('sKj').textContent = Math.round(session.joules / 1000);
@@ -718,7 +727,7 @@ function parseICTX(text, fallbackName) {
     const loops = Math.max(1, parseInt(txt(sq, 'loops')) || 1), sname = txt(sq, 'name');
     const legs = [...sq.querySelectorAll('leg')].map(leg => {
       const [m, s] = txt(leg, 'duration').split(':').map(Number);
-      const ratio = parseFloat(txt(leg, 'levelRatio')) || 60, rpm = parseInt(txt(leg, 'rpm')) || undefined;
+      const lr = parseFloat(txt(leg, 'levelRatio')), ratio = isFinite(lr) ? lr : 60, rpm = parseInt(txt(leg, 'rpm')) || undefined;
       const standing = txt(leg, 'position') === 'standing';
       return S((m || 0) * 60 + (s || 0), ratio / 100, { cad: rpm, cue: txt(leg, 'comment') || undefined, label: (sname || 'Tram') + (standing ? ' · dret' : '') });
     });
@@ -727,11 +736,11 @@ function parseICTX(text, fallbackName) {
   const nm = [...doc.querySelectorAll('name')].find(n => !n.closest('sequence'));
   return { name: (nm && nm.textContent.trim()) || fallbackName, steps };
 }
-function parseMRC(text, fallbackName, ftpWatts) {      // .mrc (% FTP) i .erg (watts)
+function parseMRC(text, fallbackName, ftpWatts, isErg) {      // .mrc (% FTP) i .erg (watts)
   const lines = text.split(/\r?\n/);
   const hdr = lines.join('\n').toUpperCase();
-  const watts = /MINUTES\s+WATTS/.test(hdr);
   const fm = hdr.match(/^\s*FTP\s*=\s*(\d+)/m), fileFtp = fm ? +fm[1] : ftpWatts;
+  const watts = /MINUTES\s+WATTS/.test(hdr) || (!/MINUTES\s+PERCENT/.test(hdr) && (isErg || !!fm));
   const dm = text.match(/^\s*DESCRIPTION\s*=\s*(.+)$/mi);
   const a = lines.findIndex(l => /\[COURSE DATA\]/i.test(l)), b = lines.findIndex(l => /\[END COURSE DATA\]/i.test(l));
   if (a < 0) throw new Error('No hi ha [COURSE DATA] al fitxer.');
@@ -750,7 +759,7 @@ function parseWorkoutFile(name, text, ftpWatts) {
   text = text.replace(/^\uFEFF/, '');
   let w;
   if (/\.ictx$/i.test(name) || /<sequence>/.test(text)) w = parseICTX(text, base);
-  else if (/\.(mrc|erg)$/i.test(name) || /\[COURSE DATA\]/i.test(text)) w = parseMRC(text, base, ftpWatts);
+  else if (/\.(mrc|erg)$/i.test(name) || /\[COURSE DATA\]/i.test(text)) w = parseMRC(text, base, ftpWatts, /\.erg$/i.test(name));
   else w = parseZWO(text, base);
   w.steps = w.steps.filter(s => s.dur > 0 && isFinite(s.p0) && isFinite(s.p1));
   if (!w.steps.length) throw new Error('El fitxer no conté cap tram vàlid.');
@@ -858,7 +867,7 @@ function stopWorkout(finished) {
   const was = player.playing || player.t > 0;
   player.playing = false; player.t = 0; player.idx = -1;
   $('wPlay').textContent = 'Comença';
-  if (was) { log(finished ? 'Entrenament acabat.' : 'Entrenament aturat.'); if (finished) { beep(1040, 600); setTP(Math.round(player.ftp * 0.4)); } }
+  if (was) { log(finished ? 'Entrenament acabat.' : 'Entrenament aturat: la bici baixa a potència suau.'); if (finished) beep(1040, 600); setTP(Math.round(player.ftp * 0.4)); }
   renderPlayer();
 }
 function fillWorkoutSelect(selIndex) {
@@ -888,7 +897,7 @@ function fromBuilder(p) {
   const steps = (p.intervals || []).map(iv => S(Math.round(+iv.duration_seconds) || 0, (+iv.power_percent_ftp || 0) / 100, {
     cad: iv.cadence_rpm_target ? +iv.cadence_rpm_target : undefined,
     cue: typeof iv.cue === 'string' && iv.cue.trim() ? iv.cue.trim() : undefined,
-    label: (LBL[iv.type] || 'Tram') + (iv.posture_cue === 'standing' ? ' · dret' : '') })).filter(s => s.dur > 0 && s.p0 > 0);
+    label: (LBL[iv.type] || 'Tram') + (iv.posture_cue === 'standing' ? ' · dret' : '') })).filter(s => s.dur > 0 && s.p0 >= 0);
   if (!steps.length) throw new Error('entrenament buit');
   return { name: String(p.name || 'Entrenament').slice(0, 80), steps };
 }
@@ -898,7 +907,7 @@ function takePending() {
   if (!raw) return;
   try {
     const p = JSON.parse(raw), w = fromBuilder(p);
-    if (p.ftp >= 80 && p.ftp <= 500) { player.ftp = Math.round(p.ftp); $('ftp').value = player.ftp; try { localStorage.setItem('cc.ftp', player.ftp); } catch {} }
+    if (p.ftp >= 50 && p.ftp <= 500) { player.ftp = Math.round(p.ftp); $('ftp').value = player.ftp; try { localStorage.setItem('cc.ftp', player.ftp); } catch {} }
     addWorkout(w, 'Rebut de la web d\'intervals');
   } catch (e) { log(`No s'ha pogut carregar l'entrenament rebut: ${e.message}`); }
 }
@@ -946,7 +955,7 @@ function init() {
   document.querySelectorAll('[data-sl]').forEach(b => b.onclick = () => setSL(target.slope + +b.dataset.sl));
   document.querySelectorAll('[data-slset]').forEach(b => b.onclick = () => setSL(+b.dataset.slset));
   $('startBtn').onclick = () => { session.running = !session.running; $('startBtn').textContent = session.running ? 'Pausa' : 'Continua'; keepAwake(session.running); };
-  $('resetBtn').onclick = () => { Object.assign(session, { running: false, secs: 0, sumP: 0, maxP: 0, dist: 0, joules: 0, rows: [] });
+  $('resetBtn').onclick = () => { Object.assign(session, { running: false, secs: 0, sumP: 0, nP: 0, maxP: 0, dist: 0, joules: 0, rows: [] });
     $('startBtn').textContent = 'Inicia sessió'; $('sTime').textContent = '00:00'; $('sAvg').textContent = '–'; $('sMax').textContent = '–'; $('sDist').textContent = '0.00'; $('sKj').textContent = '0'; keepAwake(false); };
   $('csvBtn').onclick = () => {
     const csv = 'segon,potencia_w,cadencia_rpm,pols_ppm,velocitat_kmh,objectiu_w,pendent_pct\n' + session.rows.map(r => r.join(',')).join('\n');
@@ -957,13 +966,15 @@ function init() {
   $('copyLog').onclick = async () => { try { await navigator.clipboard.writeText(logEl.textContent); log('Registre copiat.'); }
     catch { const r = document.createRange(); r.selectNodeContents(logEl); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } };
   $('clearLog').onclick = () => { logEl.textContent = ''; };
-  try { const f = +localStorage.getItem('cc.ftp'); if (f >= 80 && f <= 500) player.ftp = f; } catch {}
+  try { const f = +localStorage.getItem('cc.ftp'); if (f >= 50 && f <= 500) player.ftp = f; } catch {}
   $('ftp').value = player.ftp;
-  $('ftp').onchange = (e) => { const f = Math.max(80, Math.min(500, +e.target.value || 200)); player.ftp = f; e.target.value = f;
+  $('ftp').onchange = (e) => { const f = Math.max(50, Math.min(500, +e.target.value || 200)); player.ftp = f; e.target.value = f;
     try { localStorage.setItem('cc.ftp', f); } catch {} if (player.playing) applyPlayer(); renderPlayer(); };
   workouts.push(...loadLibrary());
   fillWorkoutSelect(0); loadWorkout(workouts[0]);
   takePending();
+  // La web d'intervals pregunta si ja hi ha un reproductor obert abans d'obrir-ne un altre.
+  try { const bc = new BroadcastChannel('cc-player'); bc.onmessage = (e) => { if (e.data === 'ping') bc.postMessage('pong'); }; } catch {}
   window.addEventListener('storage', (e) => { if (e.key === 'cc.pendingWorkout' && e.newValue) takePending(); });
   $('wSel').onchange = (e) => { stopWorkout(false); loadWorkout(workouts[+e.target.value]); };
   $('wImport').onclick = () => $('wFile').click();
